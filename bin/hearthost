@@ -35,6 +35,8 @@ export HEARTHOST_ROOT
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/phpmyadmin.sh"
 # shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/slice.sh"
+# shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/ftp.sh"
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/user.sh"
@@ -61,6 +63,9 @@ Commands:
   init php                  Phase 4: PHP-FPM 8.2–8.5 (ondrej/php or Remi)
   init sftp                 Phase 5: SFTP chroot policy (reload sshd)
   init ftp                  Phase 5: vsftpd (FTPS), opt-in via ftp_enable
+  init slices               Phase 6: (re)apply per-tenant RAM/CPU caps
+  slice apply USER [--memory M] [--cpu C] [--tasks N]
+                            Cap a tenant's slice (RAM/CPU/tasks)
   php versions              Print configured PHP versions
   php pool USER VERSION     Render a per-user FPM pool (USER:USER)
   user add USER [--sftp-only] [--password PW] [--no-db] [--memory M] [--cpu C]
@@ -110,6 +115,31 @@ hh_cmd_user() {
     del|rm|remove) hh_user_del "$@" ;;
     *) hh_die "usage: hearthost user add USER [...] | user del USER [--purge]" ;;
   esac
+}
+
+hh_cmd_slice() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+    apply) hh_slice_apply "$@" ;;
+    *) hh_die "usage: hearthost slice apply USER [--memory M] [--cpu C] [--tasks N]" ;;
+  esac
+}
+
+# init slices: (re)apply the cap to every tenant that has a state record.
+hh_slices_apply_all() {
+  hh_require_root
+  hh_config_load
+  local dir f user applied=0
+  dir="$(dirname "$(hh_user_state x)")"
+  [[ -d "$dir" ]] || { hh_info "no tenants yet ($dir empty)"; return 0; }
+  while IFS= read -r f; do
+    [[ -f "$f" ]] || continue
+    user="$(sed -n 's/^username:[[:space:]]*//p' "$f" | head -1)"
+    [[ -n "$user" ]] && getent passwd "$user" >/dev/null || continue
+    hh_slice_apply "$user" >/dev/null && applied=$((applied + 1))
+  done < <(find "$dir" -maxdepth 1 -type f -name '*.yaml')
+  hh_info "applied slice caps to $applied tenant(s)"
 }
 
 hh_cmd_path() {
@@ -332,6 +362,9 @@ hh_cmd_init() {
       ftp|vsftpd)
         target=ftp
         ;;
+      slices|slice|phase6)
+        target=slices
+        ;;
       *)
         hh_die "usage: hearthost init hardening|nginx|mariadb|ssl|php|sftp|ftp [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
         ;;
@@ -363,6 +396,9 @@ hh_cmd_init() {
       ;;
     ftp)
       hh_ftp_apply
+      ;;
+    slices)
+      hh_slices_apply_all
       ;;
     mariadb)
       HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
@@ -425,6 +461,7 @@ main() {
     php) hh_cmd_php "$@" ;;
     site) hh_cmd_site "$@" ;;
     user) hh_cmd_user "$@" ;;
+    slice) hh_cmd_slice "$@" ;;
     ftp) hh_ftp_cmd "$@" ;;
     db|wp)
       hh_die "'$cmd' is scheduled for a later phase. See docs/ARCHITECTURE.md."

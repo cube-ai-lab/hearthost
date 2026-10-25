@@ -65,6 +65,13 @@ hh_php_max_children() {
   printf '%s\n' "$children"
 }
 
+# Normalize an operator CPU spelling to systemd CPUQuota ("100%", "50%").
+hh_systemd_cpu_quota() {
+  local pct
+  pct="$(hh_parse_cpu_quota "$1")" || return 1
+  printf '%s%%\n' "$pct"
+}
+
 hh_systemd_memory_max() {
   # systemd accepts 1G, 512M natively; keep the operator spelling if parseable.
   local raw="$1"

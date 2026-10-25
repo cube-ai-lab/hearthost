@@ -167,6 +167,11 @@ hh_user_add() {
   hh_user_state_yaml "$user" "$mode" "$shell" "$memory" "$cpu" "$tasks" >"$state"
   chmod 640 "$state"
 
+  # Phase 6: cap the tenant's slice now so SSH/SFTP sessions are limited even
+  # before a site (and its PHP master) is added.
+  hh_slice_apply "$user" --memory "$memory" --cpu "$cpu" --tasks "$tasks" >/dev/null \
+    || hh_warn "could not apply slice cap for $user"
+
   hh_info "user $user ready. Home $home. Add a site: hearthost site add $user DOMAIN --primary"
 }
 
@@ -206,6 +211,7 @@ hh_user_del() {
 
   hh_user_db_drop "$user"
   hh_php_pool_remove "$user"
+  hh_slice_remove "$user"
   declare -F hh_ftp_deny_user >/dev/null && hh_ftp_deny_user "$user"
 
   if [[ "$purge" == yes ]]; then

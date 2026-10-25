@@ -72,6 +72,8 @@ assert_fail() {
 # shellcheck source=/dev/null
 . "$ROOT/lib/doctor.sh"
 # shellcheck source=/dev/null
+. "$ROOT/lib/slice.sh"
+# shellcheck source=/dev/null
 . "$ROOT/lib/ftp.sh"
 # shellcheck source=/dev/null
 . "$ROOT/lib/user.sh"
@@ -420,6 +422,23 @@ assert_fail "reserved user refused on ftp list" hh_ftp_allow_user root
 unset -f hh_ftp_userlist
 rm -f "$ftp_list"
 assert_eq "$(hh_ftp_conf_path)" "/etc/vsftpd.conf" "debian vsftpd conf path"
+
+printf '== unit: slice ==\n'
+assert_eq "$(hh_systemd_cpu_quota 100%)" "100%" "cpu quota 100%"
+assert_eq "$(hh_systemd_cpu_quota 1)" "100%" "cpu quota from 1 core"
+assert_eq "$(hh_systemd_cpu_quota 50%)" "50%" "cpu quota half core"
+assert_eq "$(hh_systemd_memory_max 1G)" "1G" "memory max keeps spelling"
+assert_eq "$(hh_php_service_name 8.3 alice)" "hearthost-php8.3-alice.service" "service unit name"
+assert_eq "$(hh_php_tenant_pool_file alice 8.3)" "/etc/hearthost/php/alice/php8.3-pool.conf" "tenant pool path off shared dir"
+assert_eq "$(hh_php_user_global_conf alice 8.3)" "/etc/hearthost/php/alice/php8.3-fpm.conf" "tenant global conf path"
+slice_out="$(mktemp)"
+hh_slice_render "$slice_out" 1G 100% 120 256M
+assert_ok "slice sets MemoryMax" grep -q '^MemoryMax=1G$' "$slice_out"
+assert_ok "slice sets CPUQuota percent" grep -q '^CPUQuota=100%$' "$slice_out"
+assert_ok "slice sets TasksMax" grep -q '^TasksMax=120$' "$slice_out"
+assert_ok "slice sets swap" grep -q '^MemorySwapMax=256M$' "$slice_out"
+assert_fail "slice render rejects bad memory" hh_slice_render "$slice_out" notabyte 100% 120 256M
+rm -f "$slice_out"
 
 printf '== unit: doctor php state ==\n'
 # Only *.conf (not *.disabled) counts as a loadable pool.

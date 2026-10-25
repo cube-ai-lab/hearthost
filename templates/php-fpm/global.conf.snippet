@@ -1,0 +1,8 @@
+; Minimal php-fpm global config for one tenant + version.
+; The shared distro daemon never sees this pool; the dedicated
+; hearthost-php{{PHP}}-{{USER}}.service does, and lives in the tenant slice.
+[global]
+pid = /run/php/hearthost-{{USER}}-php{{PHP}}.pid
+error_log = {{HOME}}/logs/php{{PHP}}-fpm.log
+daemonize = no
+include = {{POOL_FILE}}

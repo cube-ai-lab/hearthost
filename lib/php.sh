@@ -179,22 +179,87 @@ hh_php_pool_apply() {
 
 # Remove a tenant's pool from every PHP version and reload the services that
 # actually had one. Used by user del. Safe when no pools exist.
+# Covers both the legacy shared-daemon pool and the Phase 6 dedicated service.
 hh_php_pool_remove() {
   local user="$1"
   hh_valid_username "$user" || { hh_error "invalid username: $user"; return 1; }
-  local v dir file removed=0
+  local v file removed=0
   while IFS= read -r v; do
     [[ -n "$v" ]] || continue
+    hh_php_service_remove "$user" "$v" && removed=$((removed + 1))
     file="$(hh_php_pool_file "$user" "$v")"
     if [[ -f "$file" ]]; then
       rm -f "$file"
       removed=$((removed + 1))
-      local svc
-      svc="$(hh_php_fpm_service "$v")"
-      systemctl reload "$svc" 2>/dev/null || systemctl restart "$svc" 2>/dev/null || true
+      systemctl reload "$(hh_php_fpm_service "$v")" 2>/dev/null || systemctl restart "$(hh_php_fpm_service "$v")" 2>/dev/null || true
     fi
   done < <(hh_php_versions)
-  (( removed > 0 )) && hh_info "removed $removed PHP pool(s) for $user"
+  rmdir "$(hh_php_user_conf_dir "$user")" 2>/dev/null || true
+  (( removed > 0 )) && hh_info "removed PHP pools/services for $user"
+  return 0
+}
+
+# Phase 6: a dedicated PHP-FPM master for (user, version), pinned into the
+# tenant's user-{uid}.slice so its workers count against the per-user cap.
+# Replaces the shared-daemon pool.d drop for tenants. Root.
+hh_php_service_apply() {
+  local user="$1" ver="$2"
+  hh_valid_username "$user" || { hh_error "invalid username: $user"; return 1; }
+  hh_php_allowed "$ver" || { hh_error "PHP $ver not in php_versions"; return 1; }
+  hh_php_version_installed "$ver" || { hh_error "PHP $ver FPM not installed; run hearthost init php"; return 1; }
+  getent passwd "$user" >/dev/null || { hh_error "user $user does not exist"; return 1; }
+
+  hh_php_ensure_run_dir
+  local pool global unit svc slice fpm_bin home
+  pool="$(hh_php_tenant_pool_file "$user" "$ver")"
+  global="$(hh_php_user_global_conf "$user" "$ver")"
+  unit="$(hh_php_service_unit "$ver" "$user")"
+  svc="$(hh_php_service_name "$ver" "$user")"
+  fpm_bin="$(hh_php_fpm_bin "$ver")"
+  home="$(hh_user_home "$user")"
+  slice="$(hh_user_session_slice "$user")" || { hh_error "cannot resolve uid for $user"; return 1; }
+
+  mkdir -p "$(hh_php_user_conf_dir "$user")"
+  hh_php_render_pool "$user" "$ver" "$pool" || { hh_error "failed to render pool"; return 1; }
+  chmod 644 "$pool"
+  hh_nginx_subst "$(hearthost_root)/templates/php-fpm/global.conf.snippet" "$global" \
+    "USER=$user" "PHP=$ver" "HOME=$home" "POOL_FILE=$pool"
+  chmod 644 "$global"
+
+  # Validate before installing the unit: test the exact global config.
+  if ! "$fpm_bin" -t -y "$global" >/dev/null 2>&1; then
+    local err
+    err="$("$fpm_bin" -t -y "$global" 2>&1 | grep -m1 ERROR || true)"
+    hh_error "PHP $ver config for $user rejected: ${err#*ERROR: }"
+    rm -f "$pool" "$global"
+    return 1
+  fi
+
+  # Stop sharing: remove any legacy shared-daemon pool for this user+version.
+  local legacy
+  legacy="$(hh_php_pool_file "$user" "$ver")"
+  if [[ -f "$legacy" ]]; then
+    rm -f "$legacy"
+    systemctl reload "$(hh_php_fpm_service "$ver")" 2>/dev/null || systemctl restart "$(hh_php_fpm_service "$ver")" 2>/dev/null || true
+  fi
+
+  hh_nginx_subst "$(hearthost_root)/templates/systemd/php-fpm.service.snippet" "$unit" \
+    "USER=$user" "PHP=$ver" "SLICE=$slice" "FPM_BIN=$fpm_bin" "GLOBAL_CONF=$global"
+  chmod 644 "$unit"
+  systemctl daemon-reload
+  systemctl enable --now "$svc" >/dev/null 2>&1 || systemctl restart "$svc"
+  hh_info "PHP $ver master for $user active in $slice ($svc)"
+}
+
+hh_php_service_remove() {
+  local user="$1" ver="$2"
+  local unit svc
+  unit="$(hh_php_service_unit "$ver" "$user")"
+  svc="$(hh_php_service_name "$ver" "$user")"
+  [[ -f "$unit" ]] || return 1
+  systemctl disable --now "$svc" >/dev/null 2>&1 || true
+  rm -f "$unit" "$(hh_php_tenant_pool_file "$user" "$ver")" "$(hh_php_user_global_conf "$user" "$ver")"
+  systemctl daemon-reload
   return 0
 }
 

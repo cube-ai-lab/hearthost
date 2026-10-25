@@ -55,9 +55,14 @@ SSH, SFTP, and FTP land in the same user slice so RAM/CPU caps apply.
 
 Per domain, from `8.2 8.3 8.4 8.5`. Default `8.3`.
 
-LVE profile: one FPM pool per `(php-version, user)` inside the user slice
-(`hearthost init php` installs the FPM daemons; `user`/`site` attach pools
-in Phase 5). That is how 1 GB RAM actually includes PHP workers, not only SSH.
+LVE profile: `hearthost init php` installs the shared FPM daemons (8.2–8.5),
+but tenants do not run under them. `site add` creates a dedicated master
+`hearthost-php<ver>-<user>.service` from a private config under
+`/etc/hearthost/php/<user>/`, pinned with `Slice=user-<uid>.slice`. That slice
+is capped (`MemoryMax`/`CPUQuota`/`TasksMax`) via `slice apply` / `init slices`.
+Because SSH/SFTP sessions also land in `user-<uid>.slice`, the 1 GB RAM cap
+includes PHP workers and the tenant's shell, not only SSH. phpMyAdmin keeps its
+own `hearthost-pma` pool on the shared default daemon.
 
 ```bash
 hearthost init php
@@ -128,7 +133,8 @@ copies into the mapped dest from `/etc/hearthost/ssl-map/{domain}`.
 4. Multi-PHP FPM 8.2–8.5 — `hearthost init php`
 5. `user` / `site` CLI, SFTP chroot, vsftpd — `hearthost user add`,
    `site add`, `init sftp`, `init ftp`
-6. systemd slices at 1G / 1 CPU
+6. systemd slices at 1G / 1 CPU — dedicated per-user PHP-FPM master pinned
+   into `user-<uid>.slice`, capped via `hearthost slice apply` / `init slices`
 7. WP-CLI, OPcache, optional FastCGI microcache
 8. Backups, logrotate
 9. Isolation tests and defensive scans

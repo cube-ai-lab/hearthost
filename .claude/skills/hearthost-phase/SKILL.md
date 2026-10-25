@@ -56,9 +56,17 @@ and `./bin/hearthost doctor --stack`.
 
 ## Known traps
 
-- A pool file dropped into `/etc/php/X/fpm/pool.d` runs under the shared
-  `phpX-fpm.service` cgroup, not the tenant's slice. Per-user RAM/CPU caps
-  need a per-user FPM master unit with `Slice=hearthost-<user>.slice`.
+- Tenants run a dedicated `hearthost-php<ver>-<user>.service` (Phase 6)
+  built by `hh_php_service_apply` from a private config under
+  `/etc/hearthost/php/<user>/`, pinned `Slice=user-<uid>.slice`. Do NOT drop
+  tenant pools into the shared `/etc/php/X/fpm/pool.d` — that runs them under
+  the shared daemon's cgroup, outside the cap, and double-binds the socket.
+  `hh_php_pool_file` is the shared path (phpMyAdmin only);
+  `hh_php_tenant_pool_file` is the per-tenant one.
+- The cap lives on `user-<uid>.slice` via a drop-in
+  (`hh_user_slice_dropin`); `slice apply` writes it and `set-property`s the
+  live slice. `suryasan` still uses the legacy shared pool — migrate it with
+  `site add suryasan suryasankara.in ...` before relying on its cap.
 - In `${var//pat/rep}` keep the replacement quoted (`/"$value"}`) as
   `hh_nginx_subst` does; unquoted, bash ≥ 5.2 expands `&` to the match.
 - Tenant state goes through `hh_user_state` / `hh_site_state`

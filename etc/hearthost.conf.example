@@ -10,6 +10,7 @@ profile=lve
 default_memory=1G
 default_cpu=100%
 default_tasks=120
+default_swap=256M
 default_php=8.3
 php_versions=8.2,8.3,8.4,8.5
 

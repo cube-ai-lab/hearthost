@@ -31,12 +31,13 @@ connect to that user’s PHP-FPM socket.
 
 ## Status
 
-Phase 5 is available: tenant and site lifecycle. `hearthost user add` creates
-the Unix account, home layout, access group, and MariaDB grant; `site add`
-provisions a vhost, per-user PHP pool, and TLS for any domain; `init sftp`
-installs the SFTP chroot policy and `init ftp` installs vsftpd (FTPS, opt-in).
-Phases 0–4 remain: hardening, Nginx + TLS, MariaDB + phpMyAdmin + Let's
-Encrypt, and multi-PHP 8.2–8.5 pools.
+Phase 6 is available: per-tenant RAM/CPU caps actually bind to PHP. Each
+tenant gets a dedicated PHP-FPM master (`hearthost-php<ver>-<user>.service`)
+pinned into the tenant's `user-<uid>.slice`, and that slice is capped with
+`MemoryMax`/`CPUQuota`/`TasksMax`. SSH/SFTP sessions share the same slice, so
+one cap covers the whole tenant (CloudLinux LVE-style). Earlier phases:
+tenant/site lifecycle (`user add`, `site add`, `init sftp`, `init ftp`),
+hardening, Nginx + TLS, MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.5.
 
 ```bash
 ./bin/hearthost os
@@ -46,6 +47,7 @@ Encrypt, and multi-PHP 8.2–8.5 pools.
 ./bin/hearthost init php
 ./bin/hearthost init sftp
 ./bin/hearthost init ftp            # only if ftp_enable=yes
+./bin/hearthost init slices         # (re)apply per-tenant RAM/CPU caps
 ./bin/hearthost user add alice
 ./bin/hearthost site add alice example.com --app wordpress --primary --alias www.example.com
 ./tests/run.sh

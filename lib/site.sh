@@ -119,7 +119,9 @@ hh_site_add() {
 
   hh_info "site add $domain -> $docroot (user=$user php=$php app=$app)"
   hh_site_ensure_dirs "$user" "$docroot" "$domain" || hh_die "could not prepare directories"
-  hh_php_pool_apply "$user" "$php" || hh_die "could not attach PHP $php pool for $user"
+  # Phase 6: dedicated FPM master in the tenant slice, then cap the slice.
+  hh_php_service_apply "$user" "$php" || hh_die "could not attach PHP $php master for $user"
+  hh_slice_apply "$user" >/dev/null || hh_warn "could not apply slice cap for $user"
 
   # Placeholder cert so nginx -t passes before DNS/ACME works.
   hh_ssl_ensure_placeholder "$ssl_dir"

@@ -1,0 +1,21 @@
+# Dedicated PHP-FPM master for one tenant + version, pinned into the tenant's
+# slice so its workers count against the per-user RAM/CPU cap (LVE-style).
+[Unit]
+Description=Hearthost PHP {{PHP}} FPM for {{USER}}
+After=network.target
+Documentation=man:php-fpm{{PHP}}(8)
+
+[Service]
+Type=notify
+Slice={{SLICE}}
+ExecStart={{FPM_BIN}} --nodaemonize --fpm-config {{GLOBAL_CONF}}
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=on-failure
+RestartSec=2
+ProtectSystem=full
+ProtectHome=false
+PrivateTmp=true
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

@@ -124,6 +124,51 @@ hh_user_slice() {
   printf 'hearthost-%s.slice\n' "$user"
 }
 
+# logind's native per-user slice. SSH/SFTP sessions land here automatically,
+# and the tenant PHP-FPM master is pinned here too, so one cap covers both.
+hh_user_uid() {
+  id -u "$1" 2>/dev/null
+}
+
+hh_user_session_slice() {
+  local uid
+  uid="$(hh_user_uid "$1")" || return 1
+  [[ -n "$uid" ]] || return 1
+  printf 'user-%s.slice\n' "$uid"
+}
+
+# Drop-in that caps that slice (RAM/CPU/tasks).
+hh_user_slice_dropin() {
+  local uid
+  uid="$(hh_user_uid "$1")" || return 1
+  [[ -n "$uid" ]] || return 1
+  printf '/etc/systemd/system/user-%s.slice.d/hearthost.conf\n' "$uid"
+}
+
+# Per-user, per-version dedicated FPM master.
+hh_php_service_name() {
+  printf 'hearthost-php%s-%s.service\n' "$1" "$2"
+}
+
+hh_php_service_unit() {
+  printf '/etc/systemd/system/%s\n' "$(hh_php_service_name "$1" "$2")"
+}
+
+hh_php_user_conf_dir() {
+  printf '/etc/hearthost/php/%s\n' "$1"
+}
+
+# The minimal php-fpm global config for a tenant+version (includes the pool).
+hh_php_user_global_conf() {
+  printf '%s/php%s-fpm.conf\n' "$(hh_php_user_conf_dir "$1")" "$2"
+}
+
+# Tenant pool file for the dedicated service. NOT under the shared daemon's
+# pool.d, so only the per-user master loads it (no double-bind on the socket).
+hh_php_tenant_pool_file() {
+  printf '%s/php%s-pool.conf\n' "$(hh_php_user_conf_dir "$1")" "$2"
+}
+
 # Database name for a tenant. If NAME already has the user prefix, keep it.
 hh_db_name() {
   local user="$1"

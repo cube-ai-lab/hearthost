@@ -157,7 +157,7 @@ hh_harden_apply() {
   ssh_group="$(hh_conf ssh_group hearthost-ssh)"
   sftp_group="$(hh_conf sftp_group hearthost-sftp)"
 
-  mkdir -p /etc/hearthost/backups /etc/hearthost/users.d /etc/hearthost/sites.d
+  mkdir -p /etc/hearthost/backups "$(hh_state_dir)/users.d" "$(hh_state_dir)/sites.d"
   mkdir -p /etc/ssh/sshd_config.d
   if [[ ! -f /etc/hearthost/hearthost.conf ]]; then
     install -m 0640 "$root/etc/hearthost.conf.example" /etc/hearthost/hearthost.conf

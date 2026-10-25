@@ -61,7 +61,8 @@ hh_nginx_subst() {
   for pair in "$@"; do
     key="${pair%%=*}"
     value="${pair#*=}"
-    content="${content//\{\{$key\}\}/$value}"
+    # Quoted so bash 5.2+ patsub_replacement does not expand & in the value.
+    content="${content//\{\{$key\}\}/"$value"}"
   done
   mkdir -p "$(dirname "$dest")"
   printf '%s\n' "$content" >"$dest"

@@ -185,6 +185,9 @@ assert_ok "email valid" hh_valid_email ops@example.com
 assert_fail "email invalid" hh_valid_email not-an-email
 assert_eq "$(hh_pma_user)" "hearthost-pma" "pma system user"
 assert_eq "$(hh_pma_socket)" "/run/php/php-fpm-hearthost-pma.sock" "pma fpm socket"
+assert_eq "$(hh_site_state Example.com)" "/etc/hearthost/sites.d/example.com.yaml" "site state under /etc/hearthost"
+assert_eq "$(hh_user_state alice)" "/etc/hearthost/users.d/alice.yaml" "user state under /etc/hearthost"
+assert_eq "$(HEARTHOST_STATE_DIR=/tmp/hh-state hh_user_state alice)" "/tmp/hh-state/users.d/alice.yaml" "state dir override"
 
 printf '== unit: quota ==\n'
 assert_eq "$(hh_parse_bytes 1G)" "1000000000" "1G SI"
@@ -225,6 +228,9 @@ ngout="$(mktemp)"
 printf 'root {{DOCROOT}};\nserver_name {{DOMAIN}};\n' >"$ngin"
 hh_nginx_subst "$ngin" "$ngout" "DOCROOT=/home/alice/public_html" "DOMAIN=example.com"
 assert_eq "$(tr '\n' ' ' <"$ngout" | sed 's/ *$//')" "root /home/alice/public_html; server_name example.com;" "vhost token subst"
+printf 'v={{V}}\n' >"$ngin"
+hh_nginx_subst "$ngin" "$ngout" 'V=a&b\c'
+assert_eq "$(cat "$ngout")" 'v=a&b\c' "subst keeps & and backslash literal"
 assert_ok "wordpress denies PHP in uploads" grep -q uploads "$ROOT/templates/nginx/wordpress.conf"
 assert_ok "wordpress denies wp-config" grep -q 'wp-config' "$ROOT/templates/nginx/wordpress.conf"
 assert_ok "wordpress denies xmlrpc" grep -q 'xmlrpc.php' "$ROOT/templates/nginx/wordpress.conf"

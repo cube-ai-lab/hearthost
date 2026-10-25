@@ -3,10 +3,6 @@
 *~
 .DS_Store
 /etc/hearthost.conf
-/etc/users.d/*.yaml
-/etc/sites.d/*.yaml
-!/etc/users.d/.gitkeep
-!/etc/sites.d/.gitkeep
 /tmp/
 /tests/.run/
 .env

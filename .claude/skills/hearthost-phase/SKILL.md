@@ -59,11 +59,9 @@ and `./bin/hearthost doctor --stack`.
 - A pool file dropped into `/etc/php/X/fpm/pool.d` runs under the shared
   `phpX-fpm.service` cgroup, not the tenant's slice. Per-user RAM/CPU caps
   need a per-user FPM master unit with `Slice=hearthost-<user>.slice`.
-- `hh_nginx_subst` uses bash `${var//pat/rep}`; on bash ≥ 5.2 an `&` in the
-  replacement expands to the matched text. Keep `&` out of template values
-  or escape it.
-- `hh_site_state` / `hh_user_state` currently resolve under the repo's
-  `etc/`, while `init hardening` creates `/etc/hearthost/{users,sites}.d`
-  and the schemas say `/etc/hearthost`. Use `/etc/hearthost` for live state.
+- In `${var//pat/rep}` keep the replacement quoted (`/"$value"}`) as
+  `hh_nginx_subst` does; unquoted, bash ≥ 5.2 expands `&` to the match.
+- Tenant state goes through `hh_user_state` / `hh_site_state`
+  (`/etc/hearthost/{users,sites}.d`). Set `HEARTHOST_STATE_DIR` in tests.
 - SSH `AllowGroups hearthost-ssh` applies to everyone: SFTP-only tenants
   must also be in that group (or the drop-in needs a `Match Group` block).

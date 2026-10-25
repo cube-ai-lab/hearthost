@@ -148,12 +148,18 @@ hh_db_like() {
   printf '%s%s%%\n' "$user" "$sep"
 }
 
+# Live tenant state is on the target, never in the installer checkout.
+# HEARTHOST_STATE_DIR lets tests point it at a scratch directory.
+hh_state_dir() {
+  printf '%s\n' "${HEARTHOST_STATE_DIR:-/etc/hearthost}"
+}
+
 hh_site_state() {
   local domain="${1,,}"
-  printf '%s/etc/sites.d/%s.yaml\n' "$(hearthost_root)" "$domain"
+  printf '%s/sites.d/%s.yaml\n' "$(hh_state_dir)" "$domain"
 }
 
 hh_user_state() {
   local user="$1"
-  printf '%s/etc/users.d/%s.yaml\n' "$(hearthost_root)" "$user"
+  printf '%s/users.d/%s.yaml\n' "$(hh_state_dir)" "$user"
 }

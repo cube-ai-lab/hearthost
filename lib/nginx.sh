@@ -124,7 +124,7 @@ hh_nginx_apply() {
   hh_info "installing nginx"
   hh_pkg_install nginx openssl
 
-  mkdir -p "$snip" "$(hh_nginx_confd_dir)" /var/www/letsencrypt/.well-known/acme-challenge
+  mkdir -p "$snip" "$(hh_nginx_confd_dir)"
   mkdir -p "$(hh_nginx_sites_available)" "$(hh_nginx_sites_enabled)"
   hh_nginx_ensure_default_tls
 
@@ -176,13 +176,14 @@ hh_nginx_apply() {
 
 # Used by later site-add. Safe to unit-test without root.
 hh_nginx_render_vhost() {
-  local domain="$1"
-  local docroot="$2"
-  local app="$3"
-  local log_dir="$4"
-  local socket="${5:-}"
-  local dest="${6:-}"
-  local aliases="${7:-}"
+  local user="$1"
+  local domain="$2"
+  local docroot="$3"
+  local app="$4"
+  local log_dir="$5"
+  local socket="${6:-}"
+  local dest="${7:-}"
+  local aliases="${8:-}"
   local root src
   root="$(hearthost_root)"
   src="$root/templates/nginx/vhost.conf"
@@ -192,8 +193,6 @@ hh_nginx_render_vhost() {
   if [[ -n "$aliases" ]]; then
     alias_txt=" $aliases"
   fi
-  local certs
-  certs="$(printf '    ssl_certificate /etc/letsencrypt/live/%s/fullchain.pem;\n    ssl_certificate_key /etc/letsencrypt/live/%s/privkey.pem;\n' "$domain" "$domain")"
   [[ -n "$dest" ]] || dest="$(hh_nginx_site_file "$domain")"
   hh_nginx_subst "$src" "$dest" \
     "DOMAIN=$domain" \
@@ -202,6 +201,8 @@ hh_nginx_render_vhost() {
     "LOG_DIR=$log_dir" \
     "APP=$app" \
     "SSL_LISTEN=$ssl_listen" \
-    "SSL_CERTS=$certs" \
+    "SSL_ROOT=$(hh_user_ssl_dir "$user")" \
+    "SSL_CERT=$(hh_site_ssl_cert "$user" "$domain")" \
+    "SSL_KEY=$(hh_site_ssl_key "$user" "$domain")" \
     "FPM_SOCKET=$socket"
 }

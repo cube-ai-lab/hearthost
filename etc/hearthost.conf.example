@@ -41,6 +41,7 @@ mysql_bind=127.0.0.1
 mysql_prefix_separator=_
 
 # TLS
+# ACME account email only. Certificates are /home/{user}/ssl/{domain}/.
 letsencrypt_email=
 tls_min=TLSv1.2
 

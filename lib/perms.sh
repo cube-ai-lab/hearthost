@@ -17,6 +17,8 @@ hh_perm_file() { printf '644\n'; }
 hh_perm_secret() { printf '640\n'; }     # wp-config.php and similar
 hh_perm_logs() { printf '750\n'; }
 hh_perm_tmp() { printf '700\n'; }
+hh_perm_ssl() { printf '711\n'; }        # Nginx workers traverse for ACME
+hh_perm_ssl_key() { printf '600\n'; }    # master process is root, can still load
 
 # Owner:group for tenant paths. Always the Unix account, never the web daemon.
 hh_perm_owner() {

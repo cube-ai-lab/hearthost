@@ -44,7 +44,8 @@ Commands:
   path user HOME            Print /home/{user}
   path docroot USER DOMAIN [--primary]
   path owner USER           Print user:user ownership
-  path perms home|webroot|file|secret|logs|tmp
+  path perms home|webroot|file|secret|logs|tmp|ssl
+  path ssl USER [DOMAIN]    Print /home/{user}/ssl[/{domain}]
   path db USER NAME         Print prefixed database name
   quota children MEMORY     PHP-FPM pm.max_children for a RAM cap
   quota bytes SIZE          Parse 256M / 1G to bytes
@@ -98,6 +99,16 @@ hh_cmd_path() {
       hh_valid_username "$1" || hh_die "invalid username: $1"
       hh_perm_owner "$1"
       ;;
+    ssl)
+      [[ -n "${1:-}" ]] || hh_die "usage: hearthost path ssl USER [DOMAIN]"
+      hh_valid_username "$1" || hh_die "invalid username: $1"
+      if [[ -n "${2:-}" ]]; then
+        hh_valid_domain "$2" || hh_die "invalid domain: $2"
+        hh_site_ssl_dir "$1" "$2"
+      else
+        hh_user_ssl_dir "$1"
+      fi
+      ;;
     perms)
       case "${1:-}" in
         home) hh_perm_home ;;
@@ -107,11 +118,13 @@ hh_cmd_path() {
         secret) hh_perm_secret ;;
         logs) hh_perm_logs ;;
         tmp) hh_perm_tmp ;;
-        *) hh_die "usage: hearthost path perms home|webroot|file|secret|logs|tmp" ;;
+        ssl) hh_perm_ssl ;;
+        ssl-key|key) hh_perm_ssl_key ;;
+        *) hh_die "usage: hearthost path perms home|webroot|file|secret|logs|tmp|ssl" ;;
       esac
       ;;
     *)
-      hh_die "usage: hearthost path user|docroot|owner|perms|db|socket ..."
+      hh_die "usage: hearthost path user|docroot|owner|ssl|perms|db|socket ..."
       ;;
   esac
 }

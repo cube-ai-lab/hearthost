@@ -15,6 +15,8 @@ of this repository can sit anywhere; the CLI locates itself relative to
 | `/etc/hearthost/hearthost.conf` | Installed config (created by `hearthost init`) |
 | `/home/{user}/public_html` | Primary website |
 | `/home/{user}/{domain}` | Every other domain and subdomain |
+| `/home/{user}/ssl` | ACME webroot (`/.well-known`) |
+| `/home/{user}/ssl/{domain}/` | `fullchain.pem` + `privkey.pem` |
 | `/home/{user}/logs` | Per-user logs |
 | `/home/{user}/tmp` | PHP upload and session dir |
 | `hearthost-{user}.slice` | cgroup v2 LVE: MemoryMax=1G, CPUQuota=100% |
@@ -32,6 +34,8 @@ can write `wp-content` without world-writable directories.
 | `/home/{user}/{domain}` | user:user | 755 | Same for addon domains and subdomains |
 | files (css, php, uploads) | user:user | 644 | Owner writes; Nginx reads as “other” |
 | `wp-config.php` and secrets | user:user | 640 | PHP-FPM as the user can read; neighbors cannot |
+| `/home/{user}/ssl` | user:user | 711 | ACME challenges; Nginx workers traverse |
+| `/home/{user}/ssl/{domain}/privkey.pem` | user:user | 600 | Nginx master (root) loads the key |
 | `/home/{user}/logs` | user:user | 750 | Not web-served |
 | `/home/{user}/tmp` | user:user | 700 | PHP sessions and uploads |
 | FPM socket | user:www-data (or nginx) | 660 | Only place the web daemon appears |

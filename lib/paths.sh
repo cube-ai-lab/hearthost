@@ -49,6 +49,25 @@ hh_user_sessions() {
   printf '%s/tmp/sessions\n' "$(hh_user_home "$1")"
 }
 
+# Certificates and ACME webroot live with the account, not under /var/www.
+hh_user_ssl_dir() {
+  printf '%s/ssl\n' "$(hh_user_home "$1")"
+}
+
+hh_site_ssl_dir() {
+  local user="$1"
+  local domain="${2,,}"
+  printf '%s/%s\n' "$(hh_user_ssl_dir "$user")" "$domain"
+}
+
+hh_site_ssl_cert() {
+  printf '%s/fullchain.pem\n' "$(hh_site_ssl_dir "$1" "$2")"
+}
+
+hh_site_ssl_key() {
+  printf '%s/privkey.pem\n' "$(hh_site_ssl_dir "$1" "$2")"
+}
+
 hh_fpm_socket() {
   local php="$1"
   local user="$2"

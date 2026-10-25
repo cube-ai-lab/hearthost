@@ -32,8 +32,8 @@ check "http snippet" test -f /etc/nginx/conf.d/00-hearthost.conf
 check "ssl params" test -f /etc/nginx/snippets/hearthost-ssl-params.conf
 check "wordpress snippet" test -f /etc/nginx/snippets/hearthost-wordpress.conf
 check "laravel snippet" test -f /etc/nginx/snippets/hearthost-laravel.conf
-check "acme webroot" test -d /var/www/letsencrypt/.well-known/acme-challenge
-check "default TLS cert" test -f /etc/hearthost/tls/default.crt
+check "acme snippet uses \$hh_ssl_root" grep -q 'hh_ssl_root' /etc/nginx/snippets/hearthost-acme.conf
+check "default TLS cert is system catch-all only" test -f /etc/hearthost/tls/default.crt
 check "distro default site gone" bash -c '! test -e /etc/nginx/sites-enabled/default'
 
 code="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: invalid.example' http://127.0.0.1/ || true)"

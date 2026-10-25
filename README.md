@@ -3,9 +3,10 @@
 CLI-first multi-tenant hosting for Ubuntu LTS and AlmaLinux. No control panel.
 
 Each customer is a Unix user. The primary site is `/home/{user}/public_html`.
-Every extra domain or subdomain is `/home/{user}/{domain}`. PHP version is
-chosen per site. RAM and CPU are capped per user with systemd cgroup v2
-(CloudLinux LVE-style): **1 GB RAM and 1 CPU by default**, overridable as root.
+Every extra domain or subdomain is `/home/{user}/{domain}`. TLS certificates
+and ACME challenges live in `/home/{user}/ssl`. PHP version is chosen per
+site. RAM and CPU are capped per user with systemd cgroup v2 (CloudLinux
+LVE-style): **1 GB RAM and 1 CPU by default**, overridable as root.
 
 WordPress and Laravel are first-class. MariaDB, phpMyAdmin, SFTP, and FTP
 are included. Nginx terminates TLS.
@@ -69,6 +70,7 @@ cd hearthost
 | Quota | 1G RAM, 100% CPU (one core), overridable per user |
 | Uploads | SFTP + classic FTP on port 21 |
 | phpMyAdmin | dedicated hostname + HTTPS + fail2ban (prompted at install) |
+| TLS | `/home/{user}/ssl/{domain}/` (ACME under `/home/{user}/ssl`) |
 
 Classic FTP sends passwords in the clear. FTPS is offered on the same daemon.
 Prefer SFTP.

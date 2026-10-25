@@ -102,6 +102,8 @@ assert_eq "$(hh_perm_file)" "644" "files 644"
 assert_eq "$(hh_perm_secret)" "640" "secrets 640"
 assert_eq "$(hh_perm_logs)" "750" "logs 750"
 assert_eq "$(hh_perm_tmp)" "700" "tmp 700"
+assert_eq "$(hh_perm_ssl)" "711" "ssl dir 711"
+assert_eq "$(hh_perm_ssl_key)" "600" "ssl key 600"
 assert_ok "www-data is the daemon not a tenant owner" hh_perm_is_web_daemon www-data
 assert_ok "nginx is the daemon not a tenant owner" hh_perm_is_web_daemon nginx
 assert_fail "alice is not a web daemon" hh_perm_is_web_daemon alice
@@ -146,6 +148,10 @@ assert_eq "$(hh_user_slice alice)" "hearthost-alice.slice" "user slice"
 assert_eq "$(hh_db_name alice wordpress)" "alice_wordpress" "db prefix added"
 assert_eq "$(hh_db_name alice alice_wp)" "alice_wp" "db prefix not doubled"
 assert_eq "$(hh_db_like alice)" "alice_%" "grant LIKE pattern"
+assert_eq "$(hh_user_ssl_dir alice)" "/home/alice/ssl" "user ssl dir"
+assert_eq "$(hh_site_ssl_dir alice example.com)" "/home/alice/ssl/example.com" "domain ssl dir"
+assert_eq "$(hh_site_ssl_cert alice example.com)" "/home/alice/ssl/example.com/fullchain.pem" "fullchain path"
+assert_eq "$(hh_site_ssl_key alice example.com)" "/home/alice/ssl/example.com/privkey.pem" "privkey path"
 
 printf '== unit: quota ==\n'
 assert_eq "$(hh_parse_bytes 1G)" "1000000000" "1G SI"
@@ -190,7 +196,19 @@ assert_ok "wordpress denies PHP in uploads" grep -q uploads "$ROOT/templates/ngi
 assert_ok "wordpress denies wp-config" grep -q 'wp-config' "$ROOT/templates/nginx/wordpress.conf"
 assert_ok "wordpress denies xmlrpc" grep -q 'xmlrpc.php' "$ROOT/templates/nginx/wordpress.conf"
 assert_ok "tls min 1.2" grep -q 'TLSv1.2' "$ROOT/templates/nginx/nginx.conf"
-assert_ok "acme challenge path" grep -q 'acme-challenge' "$ROOT/templates/nginx/acme.conf"
+assert_ok "acme uses per-user ssl root" grep -q 'hh_ssl_root' "$ROOT/templates/nginx/acme.conf"
+assert_fail "no global /var/www letsencrypt webroot" grep -q '/var/www/letsencrypt' "$ROOT/templates/nginx/acme.conf" "$ROOT/lib/nginx.sh"
+hh_nginx_subst "$ROOT/templates/nginx/vhost.conf" "$ngout" \
+  "DOMAIN=example.com" "ALIASES=" "DOCROOT=/home/alice/public_html" \
+  "LOG_DIR=/home/alice/logs" "APP=wordpress" \
+  "SSL_LISTEN=    listen 443 ssl;" \
+  "SSL_ROOT=/home/alice/ssl" \
+  "SSL_CERT=/home/alice/ssl/example.com/fullchain.pem" \
+  "SSL_KEY=/home/alice/ssl/example.com/privkey.pem" \
+  "FPM_SOCKET=/run/php/php8.3-fpm-alice.sock"
+assert_ok "vhost cert is per-user" grep -q '/home/alice/ssl/example.com/fullchain.pem' "$ngout"
+assert_ok "vhost key is per-user" grep -q '/home/alice/ssl/example.com/privkey.pem' "$ngout"
+assert_ok "vhost ACME root is per-user" grep -q '"/home/alice/ssl"' "$ngout"
 load_os_fixture ubuntu-24.04
 assert_eq "$(hh_nginx_sites_available)" "/etc/nginx/sites-available" "ubuntu sites-available"
 load_os_fixture almalinux-9
@@ -223,11 +241,14 @@ hh_config_load
 
 printf '== unit: cli ==\n'
 CLI="$ROOT/bin/hearthost"
-assert_eq "$("$CLI" version)" "0.4.0" "cli version"
+assert_eq "$("$CLI" version)" "0.4.1" "cli version"
 assert_eq "$("$CLI" path user alice)" "/home/alice" "cli path user"
 assert_eq "$("$CLI" path docroot alice example.com --primary)" "/home/alice/public_html" "cli primary docroot"
 assert_eq "$("$CLI" path docroot alice blog.example.com)" "/home/alice/blog.example.com" "cli addon docroot"
 assert_eq "$("$CLI" path owner alice)" "alice:alice" "cli owner user:user"
+assert_eq "$("$CLI" path ssl alice)" "/home/alice/ssl" "cli ssl dir"
+assert_eq "$("$CLI" path ssl alice example.com)" "/home/alice/ssl/example.com" "cli domain ssl dir"
+assert_eq "$("$CLI" path perms ssl)" "711" "cli ssl mode"
 assert_eq "$("$CLI" path perms home)" "711" "cli home mode"
 assert_eq "$("$CLI" path perms secret)" "640" "cli secret mode"
 assert_eq "$("$CLI" path db alice wp)" "alice_wp" "cli db name"

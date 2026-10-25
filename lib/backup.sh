@@ -10,11 +10,7 @@ fi
 HEARTHOST_BACKUP_LOADED=1
 
 hh_backup_root() {
-  hh_conf backup_dir /var/backups/hearthost
-}
-
-hh_backup_user_dir() {
-  printf '%s/%s\n' "$(hh_backup_root)" "$1"
+  hh_conf backup_dir /backup
 }
 
 hh_backup_keep() {
@@ -22,7 +18,11 @@ hh_backup_keep() {
 }
 
 hh_backup_stamp() {
-  date -u +%Y%m%d-%H%M%S
+  date -u +%Y-%m-%d
+}
+
+hh_backup_date_dir() {
+  printf '%s/%s/accounts\n' "$(hh_backup_root)" "$1"
 }
 
 # Given a newline list of snapshot dir names (any order) and a keep count,
@@ -35,16 +35,15 @@ hh_backup_prune_list() {
 }
 
 hh_backup_prune() {
-  local user="$1"
-  local dir keep
-  dir="$(hh_backup_user_dir "$user")"
+  local root keep
+  root="$(hh_backup_root)"
   keep="$(hh_backup_keep)"
-  [[ -d "$dir" ]] || return 0
+  [[ -d "$root" ]] || return 0
   local name
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
-    rm -rf "${dir:?}/${name:?}"
-  done < <(find "$dir" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' 2>/dev/null | hh_backup_prune_list "$keep")
+    rm -rf "${root:?}/${name:?}"
+  done < <(find "$root" -maxdepth 1 -mindepth 1 -type d -name '????-??-??' -printf '%f\n' 2>/dev/null | hh_backup_prune_list "$keep")
 }
 
 # Dump every user_% database to dest/db/. Best effort.
@@ -85,31 +84,35 @@ hh_backup_files() {
   [[ -f "$dest/home.tar.gz" ]]
 }
 
-# Back up one tenant into backup_dir/<user>/<stamp>/.
+# Back up one tenant into /backup/YYYY-MM-DD/accounts/user.tar.gz (cPanel-style).
 hh_backup_tenant() {
   local user="$1"
   hh_valid_username "$user" || { hh_error "invalid username: $user"; return 1; }
   getent passwd "$user" >/dev/null || { hh_error "user $user does not exist"; return 1; }
-  local base dest stamp dbcount
-  base="$(hh_backup_user_dir "$user")"
+  local stamp acct_dir work_dir archive dbcount
   stamp="$(hh_backup_stamp)"
-  dest="$base/$stamp"
-  mkdir -p "$dest"
-  chmod 700 "$(hh_backup_root)" "$base" "$dest"
+  acct_dir="$(hh_backup_date_dir "$stamp")"
+  work_dir="$acct_dir/.work-${user}"
+  archive="$acct_dir/${user}.tar.gz"
+  mkdir -p "$acct_dir" "$work_dir"
+  chmod 700 "$(hh_backup_root)" "${acct_dir%/accounts}" "$acct_dir"
 
-  dbcount="$(hh_backup_databases "$user" "$dest")"
-  hh_backup_files "$user" "$dest" || hh_warn "file archive incomplete for $user"
+  dbcount="$(hh_backup_databases "$user" "$work_dir")"
+  hh_backup_files "$user" "$work_dir" || hh_warn "file archive incomplete for $user"
   {
     printf 'user=%s\n' "$user"
     printf 'stamp=%s\n' "$stamp"
     printf 'databases=%s\n' "${dbcount:-0}"
     printf 'host=%s\n' "$(hostname -f 2>/dev/null || hostname)"
-  } >"$dest/manifest.txt"
+  } >"$work_dir/manifest.txt"
 
-  hh_backup_prune "$user"
+  tar czf "$archive" -C "$acct_dir" ".work-${user}" 2>/dev/null || true
+  rm -rf "$work_dir"
+
+  hh_backup_prune
   local size
-  size="$(du -sh "$dest" 2>/dev/null | cut -f1)"
-  hh_info "backup $user -> $dest (${size:-?}, ${dbcount:-0} db)"
+  size="$(du -sh "$archive" 2>/dev/null | cut -f1)"
+  hh_info "backup $user -> $archive (${size:-?}, ${dbcount:-0} db)"
 }
 
 # hearthost backup run [USER]  (no USER = every tenant with a state record)
@@ -140,13 +143,10 @@ hh_backup_list() {
   local root
   root="$(hh_backup_root)"
   [[ -d "$root" ]] || { hh_info "no backups yet ($root)"; return 0; }
-  local base
   if [[ -n "$user" ]]; then
-    base="$(hh_backup_user_dir "$user")"
-    [[ -d "$base" ]] || { hh_info "no backups for $user"; return 0; }
-    find "$base" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | sort -r
+    find "$root" -path "*/accounts/${user}.tar.gz" -printf '%P\n' 2>/dev/null | sort -r
   else
-    find "$root" -maxdepth 2 -mindepth 2 -type d -printf '%P\n' 2>/dev/null | sort
+    find "$root" -path '*/accounts/*.tar.gz' -printf '%P\n' 2>/dev/null | sort
   fi
 }
 

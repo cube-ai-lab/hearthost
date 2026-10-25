@@ -473,13 +473,13 @@ assert_fail "port 3306 not public ok" hh_audit_public_port_ok 3306
 assert_fail "random port not public ok" hh_audit_public_port_ok 9999
 
 printf '== unit: phase8 (backup/health) ==\n'
-assert_eq "$(hh_backup_root)" "/var/backups/hearthost" "backup root default"
-assert_eq "$(hh_backup_user_dir alice)" "/var/backups/hearthost/alice" "backup user dir"
+assert_eq "$(hh_backup_root)" "/backup" "backup root default"
+assert_eq "$(hh_backup_date_dir 2026-10-25)" "/backup/2026-10-25/accounts" "backup date dir"
 assert_eq "$(hh_backup_keep)" "7" "backup keep default"
-assert_ok "stamp is YYYYMMDD-HHMMSS" bash -c '[[ "'"$(hh_backup_stamp)"'" =~ ^[0-9]{8}-[0-9]{6}$ ]]'
+assert_ok "stamp is YYYY-MM-DD" bash -c '[[ "'"$(hh_backup_stamp)"'" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]'
 # Retention: keep newest 2 of 4, delete the 2 oldest (lexical = chronological).
-prune="$(printf '%s\n' 20240101-000000 20240102-000000 20240103-000000 20240104-000000 | hh_backup_prune_list 2)"
-assert_eq "$(printf '%s' "$prune" | tr '\n' ',')" "20240102-000000,20240101-000000" "prune keeps newest 2"
+prune="$(printf '%s\n' 2024-01-01 2024-01-02 2024-01-03 2024-01-04 | hh_backup_prune_list 2)"
+assert_eq "$(printf '%s' "$prune" | tr '\n' ',')" "2024-01-02,2024-01-01" "prune keeps newest 2"
 assert_eq "$(printf '%s\n' a b c | hh_backup_prune_list 5)" "" "prune keeps all when under limit"
 # Health pure helpers.
 assert_eq "$(hh_health_cert_days /nonexistent.pem 2>/dev/null; echo $?)" "1" "cert days fails on missing file"

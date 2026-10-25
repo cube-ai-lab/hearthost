@@ -67,7 +67,7 @@ letsencrypt_email=
 tls_min=TLSv1.2
 
 # Backups and health (Phase 8)
-backup_dir=/var/backups/hearthost
+backup_dir=/backup
 backup_keep=7
 # health thresholds
 cert_warn_days=14

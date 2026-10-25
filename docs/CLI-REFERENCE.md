@@ -401,8 +401,24 @@ hearthost backup run              # all tenants
 hearthost backup run USERNAME     # one tenant
 ```
 
-Backs up tenant home directories (tar) and all `username_%` databases
-(mysqldump) to the backup directory (default: `/var/backups/hearthost`).
+Backs up tenant home directories and all `username_%` databases into a
+cPanel-style layout:
+
+```
+/backup/
+  2026-10-25/
+    accounts/
+      alice.tar.gz
+      bob.tar.gz
+  2026-10-24/
+    accounts/
+      alice.tar.gz
+      bob.tar.gz
+```
+
+Each `.tar.gz` contains the user's home (files, SSL certs, logs), database
+dumps (`db/*.sql.gz`), and a `manifest.txt`. Old date directories beyond
+`backup_keep` (default 7) are pruned automatically.
 
 ### List backups
 
@@ -411,7 +427,7 @@ hearthost backup list             # all tenants
 hearthost backup list USERNAME    # one tenant
 ```
 
-Shows available backup snapshots with timestamps.
+Shows available backup archives by date.
 
 ---
 
@@ -558,7 +574,7 @@ Server-wide defaults live in `/etc/hearthost/hearthost.conf`, created by
 | `default_memory` | `1G` | Default RAM cap per tenant |
 | `default_cpu` | `100%` | Default CPU cap per tenant |
 | `ftp_enable` | `no` | Enable vsftpd (set to `yes` before `init ftp`) |
-| `backup_dir` | `/var/backups/hearthost` | Backup destination |
+| `backup_dir` | `/backup` | Backup destination |
 | `backup_keep` | `7` | Number of daily backups to retain |
 | `cert_warn_days` | `14` | Health warns when cert expires within this many days |
 | `disk_warn_pct` | `90` | Health warns when disk usage exceeds this percent |

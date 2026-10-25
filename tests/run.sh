@@ -69,6 +69,8 @@ assert_fail() {
 . "$ROOT/lib/php.sh"
 # shellcheck source=/dev/null
 . "$ROOT/lib/phpmyadmin.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/doctor.sh"
 
 hh_config_load
 
@@ -363,6 +365,23 @@ else
   printf '  FAIL cli os should report supported=yes on Ubuntu LTS or AlmaLinux\n'
   FAIL=$((FAIL + 1))
 fi
+
+printf '== unit: doctor php state ==\n'
+# Only *.conf (not *.disabled) counts as a loadable pool.
+pool_dir="$(mktemp -d)"
+hh_php_fpm_pool_dir() { printf '%s\n' "$pool_dir"; }
+: >"$pool_dir/www.conf.hearthost-disabled"
+: >"$pool_dir/suryasan.conf.disabled"
+assert_eq "$(hh_php_active_pool_count 8.3)" "0" "disabled-only dir has 0 live pools"
+: >"$pool_dir/hearthost-pma.conf"
+assert_eq "$(hh_php_active_pool_count 8.3)" "1" "one live pool is counted"
+unset -f hh_php_fpm_pool_dir
+# shellcheck source=/dev/null
+. "$ROOT/lib/php.sh"
+rm -f "$pool_dir"/*.conf* && rmdir "$pool_dir"
+# A down version with pools is a hard failure, an idle one with none is not.
+raw='[25-Oct-2026 10:33:24] ERROR: [/etc/.../x.conf:10] unknown entry "y"'
+assert_eq "${raw#*ERROR: }" '[/etc/.../x.conf:10] unknown entry "y"' "fpm error strips timestamp prefix"
 
 printf '== unit: doctor preflight ==\n'
 set +e

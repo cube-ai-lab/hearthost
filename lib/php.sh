@@ -70,6 +70,27 @@ hh_php_bin() {
   esac
 }
 
+hh_php_fpm_bin() {
+  local v="$1"
+  case "$(hh_os_family)" in
+    rhel) printf '/opt/remi/php%s/root/usr/sbin/php-fpm\n' "$(hh_php_ver_nodot "$v")" ;;
+    *) printf '/usr/sbin/php-fpm%s\n' "$v" ;;
+  esac
+}
+
+# Print the first error from `php-fpm -t`. Returns 1 when the config is valid
+# or the binary is missing.
+hh_php_fpm_config_error() {
+  local v="$1"
+  local bin out
+  bin="$(hh_php_fpm_bin "$v")"
+  [[ -x "$bin" ]] || return 1
+  out="$("$bin" -t 2>&1)" && return 1
+  out="$(printf '%s\n' "$out" | grep -m1 'ERROR' || printf '%s\n' "$out" | head -1)"
+  # Drop the "[25-Oct-2026 10:33:24] ERROR: " prefix.
+  printf '%s\n' "${out#*ERROR: }"
+}
+
 hh_php_packages() {
   local v="$1"
   case "$(hh_os_family)" in
@@ -83,6 +104,17 @@ hh_php_packages() {
         "$v" "$v" "$v" "$v" "$v" "$v" "$v" "$v" "$v" "$v" "$v" "$v" "$v"
       ;;
   esac
+}
+
+# Count loadable pool files for a version (*.conf, excluding *.disabled).
+hh_php_active_pool_count() {
+  local v="$1"
+  local dir
+  dir="$(hh_php_fpm_pool_dir "$v")"
+  [[ -d "$dir" ]] || { printf '0\n'; return 0; }
+  local n
+  n="$(find "$dir" -maxdepth 1 -type f -name '*.conf' 2>/dev/null | wc -l)"
+  printf '%s\n' "$n"
 }
 
 hh_php_disable_www() {

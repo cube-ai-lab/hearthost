@@ -47,6 +47,23 @@ hh_doctor_ram_users_supported() {
   printf '%s\n' $((usable_b / default_b))
 }
 
+# active | down (installed, has pools, not running -> 502) |
+# idle (installed, no pools, legitimately stopped) | missing
+hh_doctor_php_state() {
+  local v="$1"
+  if systemctl is-active --quiet "$(hh_php_fpm_service "$v")" 2>/dev/null; then
+    printf 'active\n'
+  elif hh_php_version_installed "$v"; then
+    if (( $(hh_php_active_pool_count "$v") > 0 )); then
+      printf 'down\n'
+    else
+      printf 'idle\n'
+    fi
+  else
+    printf 'missing\n'
+  fi
+}
+
 hh_doctor_print() {
   local status="$1"
   local msg="$2"
@@ -298,18 +315,35 @@ hh_doctor_run() {
     hh_doctor_print info "phpMyAdmin not installed yet (Phase 3)"
   fi
 
-  local php_ver php_ok=0 php_missing=()
+  local php_ver php_svc php_err php_ok=0 php_down=0 php_missing=()
   while IFS= read -r php_ver; do
     [[ -n "$php_ver" ]] || continue
-    if systemctl is-active --quiet "$(hh_php_fpm_service "$php_ver")" 2>/dev/null \
-      || hh_php_version_installed "$php_ver"; then
-      hh_doctor_print ok "PHP $php_ver FPM present"
-      php_ok=$((php_ok + 1))
-    else
-      php_missing+=("$php_ver")
-    fi
+    php_svc="$(hh_php_fpm_service "$php_ver")"
+    case "$(hh_doctor_php_state "$php_ver")" in
+      active)
+        hh_doctor_print ok "PHP $php_ver FPM active ($php_svc)"
+        php_ok=$((php_ok + 1))
+        ;;
+      down)
+        # Installed but stopped: every site on this version is returning 502.
+        php_down=$((php_down + 1))
+        if php_err="$(hh_php_fpm_config_error "$php_ver")"; then
+          hh_doctor_print fail "PHP $php_ver FPM installed but $php_svc is not running: $php_err"
+        else
+          hh_doctor_print fail "PHP $php_ver FPM installed but $php_svc is not running (see journalctl -u $php_svc)"
+        fi
+        fail=$((fail + 1))
+        ;;
+      idle)
+        hh_doctor_print info "PHP $php_ver FPM installed, no pools yet (stopped until a site uses it)"
+        php_ok=$((php_ok + 1))
+        ;;
+      *)
+        php_missing+=("$php_ver")
+        ;;
+    esac
   done < <(hh_php_versions 2>/dev/null || printf '%s\n' 8.2 8.3 8.4 8.5)
-  if (( php_ok == 0 )); then
+  if (( php_ok == 0 && php_down == 0 )); then
     if [[ "$mode" == "stack" ]]; then
       hh_doctor_print fail "no PHP-FPM versions installed"
       fail=$((fail + 1))

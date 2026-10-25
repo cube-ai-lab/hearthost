@@ -60,6 +60,35 @@ hh_mysql() {
   mysql --protocol=socket -uroot "$@"
 }
 
+# CREATE DATABASE {user}_{name} and ensure the tenant's unix_socket login +
+# user_% grant exist. Root. Idempotent.
+hh_db_create() {
+  hh_require_root
+  hh_os_load
+  hh_config_load
+  local user="${1:-}" name="${2:-}"
+  [[ -n "$user" && -n "$name" ]] || hh_die "usage: hearthost db create USER NAME"
+  hh_valid_username "$user" || hh_die "invalid username: $user"
+  getent passwd "$user" >/dev/null || hh_die "user $user does not exist"
+  # Strip any user_ prefix the caller already applied before validating.
+  local sep bare
+  sep="$(hh_conf mysql_prefix_separator _)"
+  bare="$name"
+  [[ "$bare" == "${user}${sep}"* ]] && bare="${bare#"${user}${sep}"}"
+  hh_valid_dbname "$bare" || hh_die "invalid database name: $bare (use a-z 0-9 _)"
+  mysqladmin --protocol=socket -uroot ping >/dev/null 2>&1 || hh_die "MariaDB not reachable"
+
+  local dbname
+  dbname="$(hh_db_name "$user" "$bare")"
+  {
+    printf "CREATE DATABASE IF NOT EXISTS \`%s\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n" "$dbname"
+    hh_db_tenant_grant_sql "$user"
+    printf "FLUSH PRIVILEGES;\n"
+  } | mysql --protocol=socket -uroot || hh_die "failed to create database $dbname"
+  hh_info "database $dbname ready (login $user via unix_socket)"
+  printf '%s\n' "$dbname"
+}
+
 hh_mariadb_apply() {
   hh_require_root
   hh_os_load

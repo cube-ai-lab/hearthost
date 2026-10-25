@@ -96,6 +96,22 @@ hh_user_db_drop() {
   mysql --protocol=socket -uroot -e "DROP USER IF EXISTS '${user}'@'localhost';" >/dev/null 2>&1 || true
 }
 
+# Drop every database owned by the tenant (user_%). Only on --purge, since
+# this destroys data. Underscore in LIKE is escaped so it is literal.
+hh_user_db_drop_all() {
+  local user="$1"
+  command -v mysql >/dev/null 2>&1 || return 0
+  mysqladmin --protocol=socket -uroot ping >/dev/null 2>&1 || return 0
+  local like db
+  like="$(hh_db_like "$user")"
+  like="${like/_/\\_}"
+  while IFS= read -r db; do
+    [[ -n "$db" ]] || continue
+    mysql --protocol=socket -uroot -e "DROP DATABASE IF EXISTS \`${db}\`;" >/dev/null 2>&1 || true
+    hh_warn "dropped database $db"
+  done < <(mysql --protocol=socket -uroot -N -B -e "SHOW DATABASES LIKE '${like}';" 2>/dev/null)
+}
+
 # hearthost user add USER [--sftp-only] [--password PW] [--no-db]
 #   [--memory M] [--cpu C]
 hh_user_add() {
@@ -215,6 +231,7 @@ hh_user_del() {
   declare -F hh_ftp_deny_user >/dev/null && hh_ftp_deny_user "$user"
 
   if [[ "$purge" == yes ]]; then
+    hh_user_db_drop_all "$user"
     userdel --remove "$user" 2>/dev/null || userdel -r "$user"
     hh_warn "purged home $(hh_user_home "$user") and all tenant data for $user"
   else

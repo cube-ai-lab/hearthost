@@ -76,4 +76,14 @@ and `./bin/hearthost doctor --stack`.
   requires the home *inode* owned by root (`user add --sftp-only` sets
   root:user 750). Shell tenants keep user:user 711 and full SSH.
 - `user del` detaches the tenant's sites (via `hh_site_del --keep-data`)
-  before `userdel`; both keep tenant files unless `--purge`.
+  before `userdel`; both keep tenant files unless `--purge` (which also drops
+  the tenant's `user_%` databases via `hh_user_db_drop_all`).
+- wp-cli / any per-site PHP tool must run under the SITE's PHP binary
+  (`hh_php_bin "$ver"`), not the unversioned `php` — the default `php` here is
+  8.5 and lacks the mysql extension that the 8.3 site has. WordPress reaches
+  MariaDB as the tenant over the socket (`hh_wp_db_host`) with unix_socket
+  auth, so DB_PASSWORD is empty.
+- FastCGI microcache is server-level in the vhost (inherited by the php
+  location); the zone lives in `conf.d/01-hearthost-microcache.conf`
+  (`hh_nginx_ensure_microcache_zone`). Skip cache for non-GET, query strings,
+  and WP logged-in/cart cookies.

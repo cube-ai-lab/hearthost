@@ -42,6 +42,12 @@ hh_valid_email() {
   [[ "$e" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]
 }
 
+# Database/table-name component (before the user_ prefix is added).
+hh_valid_dbname() {
+  local n="${1:-}"
+  [[ "$n" =~ ^[a-z0-9_]{1,48}$ ]]
+}
+
 hh_valid_app() {
   case "${1:-}" in
     wordpress|laravel|php) return 0 ;;

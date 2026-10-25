@@ -42,6 +42,8 @@ export HEARTHOST_ROOT
 . "$HEARTHOST_ROOT/lib/user.sh"
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/site.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/wp.sh"
 
 hh_usage() {
   cat <<EOF
@@ -64,6 +66,7 @@ Commands:
   init sftp                 Phase 5: SFTP chroot policy (reload sshd)
   init ftp                  Phase 5: vsftpd (FTPS), opt-in via ftp_enable
   init slices               Phase 6: (re)apply per-tenant RAM/CPU caps
+  init wp                   Phase 7: install wp-cli
   slice apply USER [--memory M] [--cpu C] [--tasks N]
                             Cap a tenant's slice (RAM/CPU/tasks)
   php versions              Print configured PHP versions
@@ -72,9 +75,12 @@ Commands:
                             Create a tenant: account, home, group, DB grant
   user del USER [--purge]   Remove a tenant (keeps data unless --purge)
   site add USER DOMAIN [--php V] [--app wordpress|laravel|php]
-           [--primary] [--alias NAME]... [--no-ssl]
+           [--primary] [--alias NAME]... [--no-ssl] [--microcache SECONDS]
                             Provision a vhost + PHP pool + TLS for a domain
   site del DOMAIN [--purge] Remove a site (keeps docroot unless --purge)
+  db create USER NAME       Create database {user}_{name} + tenant grant
+  wp install USER DOMAIN [--title T] [--admin-user U] [--admin-email E] [--admin-password PW]
+                            Install WordPress into the site docroot
   ftp allow|deny USER       Add/remove a tenant from the FTP allow-list
   ssl issue --user USER DOMAIN
                             Issue Let's Encrypt cert into /home/{user}/ssl/{domain}/
@@ -92,9 +98,16 @@ Commands:
   version                   Print version
   help                      This message
 
-Not yet implemented (later phases):
-  db create, wp install
 EOF
+}
+
+hh_cmd_db() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+    create) hh_db_create "$@" ;;
+    *) hh_die "usage: hearthost db create USER NAME" ;;
+  esac
 }
 
 hh_cmd_site() {
@@ -365,6 +378,9 @@ hh_cmd_init() {
       slices|slice|phase6)
         target=slices
         ;;
+      wp|wp-cli|wpcli)
+        target=wp
+        ;;
       *)
         hh_die "usage: hearthost init hardening|nginx|mariadb|ssl|php|sftp|ftp [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
         ;;
@@ -399,6 +415,9 @@ hh_cmd_init() {
       ;;
     slices)
       hh_slices_apply_all
+      ;;
+    wp)
+      hh_wpcli_install
       ;;
     mariadb)
       HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
@@ -463,9 +482,8 @@ main() {
     user) hh_cmd_user "$@" ;;
     slice) hh_cmd_slice "$@" ;;
     ftp) hh_ftp_cmd "$@" ;;
-    db|wp)
-      hh_die "'$cmd' is scheduled for a later phase. See docs/ARCHITECTURE.md."
-      ;;
+    db) hh_cmd_db "$@" ;;
+    wp) hh_wp_cmd "$@" ;;
     *)
       hh_usage >&2
       hh_die "unknown command: $cmd"

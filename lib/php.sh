@@ -149,7 +149,10 @@ hh_php_render_pool() {
     "WEB_USER=$(hh_os_web_user)" \
     "MAX_CHILDREN=$children" \
     "HOME=$home" \
-    "PHP_MEMORY_LIMIT=$(hh_conf php_memory_limit 256M)"
+    "PHP_MEMORY_LIMIT=$(hh_conf php_memory_limit 256M)" \
+    "OPCACHE_MEMORY=$(hh_conf opcache_memory 128)" \
+    "OPCACHE_FILES=$(hh_conf opcache_files 10000)" \
+    "OPCACHE_VALIDATE=$(hh_conf opcache_validate 1)"
 }
 
 # Render a tenant pool for one version and load it: validate the FPM config,

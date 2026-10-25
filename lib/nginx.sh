@@ -175,6 +175,46 @@ hh_nginx_apply() {
   hh_info "Phase 2 nginx applied on $(hh_os_pretty)"
 }
 
+# Server-level FastCGI microcache directives (inherited by the PHP location).
+# Empty when seconds<=0. Skips cache for non-GET, query strings, and the
+# common WordPress/WooCommerce "logged in / cart / commented" cookies.
+hh_nginx_microcache_block() {
+  local seconds="${1:-0}"
+  [[ "$seconds" =~ ^[0-9]+$ ]] || seconds=0
+  if (( seconds <= 0 )); then
+    printf '\n'
+    return 0
+  fi
+  cat <<EOF
+    set \$hh_skip_cache 0;
+    if (\$request_method !~ ^(GET|HEAD)\$) { set \$hh_skip_cache 1; }
+    if (\$query_string != "") { set \$hh_skip_cache 1; }
+    if (\$http_cookie ~* "wordpress_logged_in|wp-postpass|woocommerce_items_in_cart|woocommerce_cart_hash|comment_author") { set \$hh_skip_cache 1; }
+    fastcgi_cache hearthost_microcache;
+    fastcgi_cache_key "\$scheme\$request_method\$host\$request_uri";
+    fastcgi_cache_valid 200 301 302 ${seconds}s;
+    fastcgi_cache_use_stale error timeout updating invalid_header http_500 http_503;
+    fastcgi_cache_background_update on;
+    fastcgi_cache_lock on;
+    fastcgi_cache_bypass \$hh_skip_cache;
+    fastcgi_no_cache \$hh_skip_cache;
+    add_header X-Hearthost-Cache \$upstream_cache_status;
+EOF
+}
+
+# Ensure the http-context cache zone exists (idempotent). Root.
+hh_nginx_ensure_microcache_zone() {
+  local dest=/etc/nginx/conf.d/01-hearthost-microcache.conf
+  local cache_dir=/var/cache/nginx/hearthost
+  mkdir -p "$cache_dir"
+  chown "$(hh_os_web_user):$(hh_os_web_user)" "$cache_dir" 2>/dev/null || true
+  chmod 700 "$cache_dir"
+  [[ -f "$dest" ]] && return 0
+  hh_nginx_subst "$(hearthost_root)/templates/nginx/microcache-zone.conf" "$dest" \
+    "ZONE_MB=$(hh_conf microcache_zone_mb 64)"
+  chmod 644 "$dest"
+}
+
 # Used by later site-add. Safe to unit-test without root.
 hh_nginx_render_vhost() {
   local user="$1"
@@ -185,6 +225,7 @@ hh_nginx_render_vhost() {
   local socket="${6:-}"
   local dest="${7:-}"
   local aliases="${8:-}"
+  local microcache="${9:-0}"
   local root src
   root="$(hearthost_root)"
   src="$root/templates/nginx/vhost.conf"
@@ -205,5 +246,6 @@ hh_nginx_render_vhost() {
     "SSL_ROOT=$(hh_user_ssl_dir "$user")" \
     "SSL_CERT=$(hh_site_ssl_cert "$user" "$domain")" \
     "SSL_KEY=$(hh_site_ssl_key "$user" "$domain")" \
-    "FPM_SOCKET=$socket"
+    "FPM_SOCKET=$socket" \
+    "MICROCACHE=$(hh_nginx_microcache_block "$microcache")"
 }

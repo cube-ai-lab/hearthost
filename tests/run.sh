@@ -79,6 +79,8 @@ assert_fail() {
 . "$ROOT/lib/user.sh"
 # shellcheck source=/dev/null
 . "$ROOT/lib/site.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/wp.sh"
 
 hh_config_load
 
@@ -422,6 +424,31 @@ assert_fail "reserved user refused on ftp list" hh_ftp_allow_user root
 unset -f hh_ftp_userlist
 rm -f "$ftp_list"
 assert_eq "$(hh_ftp_conf_path)" "/etc/vsftpd.conf" "debian vsftpd conf path"
+
+printf '== unit: phase7 (opcache/microcache/wp/db) ==\n'
+# OPcache tokens render into the pool.
+op_out="$(mktemp)"
+hh_php_render_pool alice 8.3 "$op_out"
+assert_ok "pool enables opcache" grep -q 'opcache.enable\] = On' "$op_out"
+assert_ok "pool sets opcache memory" grep -q 'opcache.memory_consumption\] = 128' "$op_out"
+assert_ok "pool sets opcache files" grep -q 'opcache.max_accelerated_files\] = 10000' "$op_out"
+rm -f "$op_out"
+# Microcache block: empty when off, directives when on.
+assert_eq "$(hh_nginx_microcache_block 0 | tr -d '[:space:]')" "" "microcache off is empty"
+mc="$(hh_nginx_microcache_block 10)"
+assert_ok "microcache sets valid ttl" grep -q 'fastcgi_cache_valid 200 301 302 10s;' <<<"$mc"
+assert_ok "microcache skips non-GET" grep -q 'request_method !~' <<<"$mc"
+assert_ok "microcache skips wp logged-in cookie" grep -q 'wordpress_logged_in' <<<"$mc"
+assert_ok "microcache names the zone" grep -q 'fastcgi_cache hearthost_microcache;' <<<"$mc"
+# Site state records the microcache ttl.
+mcyaml="$(hh_site_state_yaml alice example.com yes 8.3 wordpress yes "" 30)"
+assert_ok "state records microcache" grep -q '^microcache: 30$' <<<"$mcyaml"
+# WP + DB name helpers.
+assert_eq "$(hh_wp_db_name alice)" "alice_wp" "wp db name"
+assert_eq "$(hh_wpcli_path)" "/usr/local/bin/wp" "wp-cli path"
+assert_ok "dbname valid" hh_valid_dbname wp_main2
+assert_fail "dbname rejects dash" hh_valid_dbname bad-name
+assert_fail "dbname rejects uppercase" hh_valid_dbname Big
 
 printf '== unit: slice ==\n'
 assert_eq "$(hh_systemd_cpu_quota 100%)" "100%" "cpu quota 100%"

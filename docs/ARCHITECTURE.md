@@ -135,7 +135,8 @@ copies into the mapped dest from `/etc/hearthost/ssl-map/{domain}`.
    `site add`, `init sftp`, `init ftp`
 6. systemd slices at 1G / 1 CPU — dedicated per-user PHP-FPM master pinned
    into `user-<uid>.slice`, capped via `hearthost slice apply` / `init slices`
-7. WP-CLI, OPcache, optional FastCGI microcache
+7. WP-CLI, OPcache, optional FastCGI microcache — `hearthost init wp`,
+   `wp install`, `db create`, per-tenant OPcache, `site add --microcache N`
 8. Backups, logrotate
 9. Isolation tests and defensive scans
 

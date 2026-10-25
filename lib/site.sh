@@ -18,13 +18,14 @@ hh_site_app_snippet() {
 
 # Render the /etc/hearthost/sites.d/{domain}.yaml record. Pure.
 hh_site_state_yaml() {
-  local user="$1" domain="${2,,}" primary="$3" php="$4" app="$5" ssl="$6" aliases="$7"
+  local user="$1" domain="${2,,}" primary="$3" php="$4" app="$5" ssl="$6" aliases="$7" microcache="${8:-0}"
   printf 'domain: %s\n' "$domain"
   printf 'user: %s\n' "$user"
   printf 'primary: %s\n' "$primary"
   printf 'php: "%s"\n' "$php"
   printf 'app: %s\n' "$app"
   printf 'ssl: %s\n' "$ssl"
+  printf 'microcache: %s\n' "$microcache"
   printf 'docroot: %s\n' "$(hh_site_docroot "$user" "$domain" "$primary")"
   printf 'aliases: [%s]\n' "$aliases"
   printf 'created: "%s"\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -80,9 +81,10 @@ hh_site_add() {
 
   local user="${1:-}" domain="${2:-}"
   shift 2 2>/dev/null || true
-  local php app primary=no ssl=yes
+  local php app primary=no ssl=yes microcache
   php="$(hh_php_default)"
   app=wordpress
+  microcache="$(hh_conf microcache_seconds 0)"
   local -a aliases=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -94,10 +96,13 @@ hh_site_add() {
       --alias) aliases+=("${2:-}"); shift ;;
       --alias=*) aliases+=("${1#*=}") ;;
       --no-ssl) ssl=no ;;
-      *) hh_die "usage: hearthost site add USER DOMAIN [--php V] [--app wordpress|laravel|php] [--primary] [--alias NAME]... [--no-ssl]" ;;
+      --microcache) microcache="${2:-}"; shift ;;
+      --microcache=*) microcache="${1#*=}" ;;
+      *) hh_die "usage: hearthost site add USER DOMAIN [--php V] [--app wordpress|laravel|php] [--primary] [--alias NAME]... [--no-ssl] [--microcache SECONDS]" ;;
     esac
     shift
   done
+  [[ "$microcache" =~ ^[0-9]+$ ]] || hh_die "--microcache must be a non-negative integer (seconds)"
 
   [[ -n "$user" && -n "$domain" ]] || hh_die "usage: hearthost site add USER DOMAIN [...]"
   hh_valid_username "$user" || hh_die "invalid username: $user"
@@ -128,8 +133,9 @@ hh_site_add() {
   chown "$user:$user" "$ssl_dir" "$ssl_dir/fullchain.pem" "$ssl_dir/privkey.pem" 2>/dev/null || true
   chmod "$(hh_perm_ssl)" "$ssl_dir"
 
+  (( microcache > 0 )) && hh_nginx_ensure_microcache_zone
   hh_backup_file "$site_file" >/dev/null
-  hh_nginx_render_vhost "$user" "$domain" "$docroot" "$app" "$log_dir" "$socket" "$site_file" "$alias_txt"
+  hh_nginx_render_vhost "$user" "$domain" "$docroot" "$app" "$log_dir" "$socket" "$site_file" "$alias_txt" "$microcache"
   hh_nginx_enable_site "$domain"
 
   if ! nginx -t; then
@@ -142,7 +148,7 @@ hh_site_add() {
   local state
   state="$(hh_site_state "$domain")"
   mkdir -p "$(dirname "$state")"
-  hh_site_state_yaml "$user" "$domain" "$primary" "$php" "$app" "$ssl" "$alias_txt" >"$state"
+  hh_site_state_yaml "$user" "$domain" "$primary" "$php" "$app" "$ssl" "$alias_txt" "$microcache" >"$state"
   chmod 640 "$state"
 
   if [[ "$ssl" == yes ]]; then

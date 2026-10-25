@@ -31,13 +31,14 @@ connect to that user’s PHP-FPM socket.
 
 ## Status
 
-Phase 6 is available: per-tenant RAM/CPU caps actually bind to PHP. Each
-tenant gets a dedicated PHP-FPM master (`hearthost-php<ver>-<user>.service`)
-pinned into the tenant's `user-<uid>.slice`, and that slice is capped with
-`MemoryMax`/`CPUQuota`/`TasksMax`. SSH/SFTP sessions share the same slice, so
-one cap covers the whole tenant (CloudLinux LVE-style). Earlier phases:
-tenant/site lifecycle (`user add`, `site add`, `init sftp`, `init ftp`),
-hardening, Nginx + TLS, MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.5.
+Phase 7 is available: apps and performance. `hearthost init wp` installs
+wp-cli; `wp install USER DOMAIN` sets up WordPress in the docroot (DB over
+unix_socket, no stored password); `db create USER NAME` makes a `{user}_{name}`
+database. OPcache is tuned per tenant, and `site add --microcache N` enables a
+FastCGI microcache for anonymous GET. Earlier phases: per-tenant RAM/CPU slices
+(dedicated PHP-FPM master in `user-<uid>.slice`), tenant/site lifecycle
+(`user add`, `site add`, `init sftp`, `init ftp`), hardening, Nginx + TLS,
+MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.5.
 
 ```bash
 ./bin/hearthost os
@@ -48,8 +49,10 @@ hardening, Nginx + TLS, MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.
 ./bin/hearthost init sftp
 ./bin/hearthost init ftp            # only if ftp_enable=yes
 ./bin/hearthost init slices         # (re)apply per-tenant RAM/CPU caps
+./bin/hearthost init wp             # install wp-cli
 ./bin/hearthost user add alice
-./bin/hearthost site add alice example.com --app wordpress --primary --alias www.example.com
+./bin/hearthost site add alice example.com --app wordpress --primary --alias www.example.com --microcache 10
+./bin/hearthost wp install alice example.com --title "My Site" --admin-email me@example.com
 ./tests/run.sh
 ```
 

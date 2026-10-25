@@ -8,6 +8,7 @@ php: "8.3"
 app: wordpress   # wordpress | laravel | php
 ssl: true
 # Optional FastCGI microcache for anonymous GET (seconds). 0 = off.
+# Set with: hearthost site add ... --microcache 10
 microcache: 0
 aliases: []
 created: ""

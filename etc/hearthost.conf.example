@@ -17,6 +17,18 @@ php_versions=8.2,8.3,8.4,8.5
 # PHP process memory used to derive pm.max_children from the user RAM cap.
 php_memory_limit=256M
 
+# OPcache per tenant. memory is MB, files is max cached scripts. validate=1
+# checks mtime every revalidate_freq s (safe default); set 0 for max speed
+# (then `hearthost wp` / deploys must flush opcache).
+opcache_memory=128
+opcache_files=10000
+opcache_validate=1
+
+# FastCGI microcache: default TTL (seconds) for anonymous GET when a site
+# opts in with `site add --microcache N`. Zone size is in MB.
+microcache_seconds=0
+microcache_zone_mb=64
+
 # Filesystem layout
 home_root=/home
 primary_docroot=public_html
@@ -42,6 +54,9 @@ phpmyadmin_host=
 # MariaDB stays on loopback. Database names for user "alice" are alice_*.
 mysql_bind=127.0.0.1
 mysql_prefix_separator=_
+
+# Default WordPress database suffix: alice_wp.
+wp_db_name=wp
 
 # TLS / Let's Encrypt
 # Account email is supplied by the server admin at install, never shipped

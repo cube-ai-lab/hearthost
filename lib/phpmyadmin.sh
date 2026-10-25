@@ -69,23 +69,62 @@ hh_pma_ensure_user() {
 hh_pma_blowfish() {
   local file=/etc/hearthost/phpmyadmin/blowfish
   mkdir -p /etc/hearthost/phpmyadmin
-  if [[ ! -s "$file" ]]; then
-    openssl rand -hex 32 >"$file"
+  if [[ ! -s "$file" ]] || [[ "$(wc -c <"$file" | tr -d ' ')" -gt 32 ]]; then
+    openssl rand -base64 24 | head -c 32 >"$file"
     chmod 640 "$file"
   fi
   tr -d '\n' <"$file"
 }
 
+hh_pma_control_pass() {
+  local file=/etc/hearthost/phpmyadmin/control_pass
+  mkdir -p /etc/hearthost/phpmyadmin
+  if [[ ! -s "$file" ]]; then
+    openssl rand -base64 24 | tr -d '\n' >"$file"
+    chmod 640 "$file"
+  fi
+  tr -d '\n' <"$file"
+}
+
+hh_pma_setup_storage() {
+  command -v mysql >/dev/null 2>&1 || return 0
+  mysqladmin --protocol=socket -uroot ping >/dev/null 2>&1 || return 0
+
+  local pass
+  pass="$(hh_pma_control_pass)"
+
+  mysql --protocol=socket -uroot -e "CREATE DATABASE IF NOT EXISTS phpmyadmin;"
+
+  local sql_file=""
+  for f in /usr/share/phpmyadmin/sql/create_tables.sql \
+           /usr/share/phpMyAdmin/sql/create_tables.sql; do
+    [[ -f "$f" ]] && { sql_file="$f"; break; }
+  done
+  if [[ -n "$sql_file" ]]; then
+    mysql --protocol=socket -uroot phpmyadmin <"$sql_file" 2>/dev/null || true
+  fi
+
+  mysql --protocol=socket -uroot -e "
+    CREATE USER IF NOT EXISTS 'pma'@'localhost' IDENTIFIED BY '$pass';
+    ALTER USER 'pma'@'localhost' IDENTIFIED BY '$pass';
+    GRANT SELECT, INSERT, UPDATE, DELETE ON phpmyadmin.* TO 'pma'@'localhost';
+    FLUSH PRIVILEGES;
+  " 2>/dev/null || true
+}
+
 hh_pma_write_config() {
   local host="$1"
-  local dest blowfish
+  local dest blowfish control_pass
   dest="$(hh_pma_config)"
   blowfish="$(hh_pma_blowfish)"
+  control_pass="$(hh_pma_control_pass)"
   mkdir -p "$(dirname "$dest")"
   hh_nginx_subst "$(hearthost_root)/templates/phpmyadmin/config.inc.php" "$dest" \
     "BLOWFISH=$blowfish" \
     "PMA_HOST=$host" \
-    "PMA_HOME=$(hh_pma_home)"
+    "PMA_HOME=$(hh_pma_home)" \
+    "PMA_CONTROL_USER=pma" \
+    "PMA_CONTROL_PASS=$control_pass"
   chmod 640 "$dest"
   chown "root:$(hh_pma_user)" "$dest"
 
@@ -93,6 +132,14 @@ hh_pma_write_config() {
   share="$(hh_pma_docroot)"
   if [[ -d "$share" ]]; then
     ln -sfn "$dest" "$share/config.inc.php"
+  fi
+
+  # Debian/Ubuntu PMA loads /etc/phpmyadmin/config.inc.php (not /usr/share),
+  # but includes /etc/phpmyadmin/conf.d/*.php at the end — drop ours there
+  # so our settings override the distro defaults (blowfish, TempDir, storage).
+  if [[ -d /etc/phpmyadmin ]]; then
+    mkdir -p /etc/phpmyadmin/conf.d
+    ln -sfn "$dest" /etc/phpmyadmin/conf.d/hearthost.php
   fi
 }
 
@@ -167,6 +214,7 @@ hh_pma_apply() {
     hh_die "phpmyadmin_host is required. Pass --phpmyadmin-host FQDN (admin-provided; not stored in the installer repo)"
   fi
 
+  hh_pma_setup_storage
   hh_pma_write_config "$host"
   hh_ssl_ensure_placeholder "$(hh_system_ssl_site_dir "$host")"
   hh_pma_render_vhost "$host"

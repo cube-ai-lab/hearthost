@@ -31,14 +31,13 @@ connect to that user’s PHP-FPM socket.
 
 ## Status
 
-Phase 7 is available: apps and performance. `hearthost init wp` installs
-wp-cli; `wp install USER DOMAIN` sets up WordPress in the docroot (DB over
-unix_socket, no stored password); `db create USER NAME` makes a `{user}_{name}`
-database. OPcache is tuned per tenant, and `site add --microcache N` enables a
-FastCGI microcache for anonymous GET. Earlier phases: per-tenant RAM/CPU slices
-(dedicated PHP-FPM master in `user-<uid>.slice`), tenant/site lifecycle
-(`user add`, `site add`, `init sftp`, `init ftp`), hardening, Nginx + TLS,
-MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.5.
+Phase 8 is available: operations. `hearthost init logrotate` rotates each
+tenant's logs, `init backups` enables a nightly timer, `backup run [USER]`
+archives tenant files + databases with retention, and `health` reports
+service/FPM/cert/disk problems (exit 1 on failure) for cron. Earlier phases:
+apps + performance (wp-cli, WordPress install, per-tenant OPcache, FastCGI
+microcache), per-tenant RAM/CPU slices, tenant/site lifecycle, SFTP/FTP,
+hardening, Nginx + TLS, MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.5.
 
 ```bash
 ./bin/hearthost os
@@ -53,6 +52,10 @@ MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.5.
 ./bin/hearthost user add alice
 ./bin/hearthost site add alice example.com --app wordpress --primary --alias www.example.com --microcache 10
 ./bin/hearthost wp install alice example.com --title "My Site" --admin-email me@example.com
+./bin/hearthost init logrotate
+./bin/hearthost init backups
+./bin/hearthost backup run
+./bin/hearthost health
 ./tests/run.sh
 ```
 

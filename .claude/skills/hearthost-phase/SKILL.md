@@ -56,6 +56,13 @@ and `./bin/hearthost doctor --stack`.
 
 ## Known traps
 
+- Shared `phpX-fpm.service` daemons are vestigial after Phase 6 except the
+  default version (phpMyAdmin). `hh_php_apply` only starts the default's
+  shared daemon; the rest stay installed but stopped/disabled so they don't
+  sit in "failed" (No pool defined), which `health` would flag.
+- Backups: `hh_backup_tenant` dumps `user_%` DBs (root socket) + tars the
+  home into `backup_dir/<user>/<stamp>/`, pruned to `backup_keep`. `health`
+  exits non-zero on problems (service/FPM/cert/disk) for a cron/timer.
 - Tenants run a dedicated `hearthost-php<ver>-<user>.service` (Phase 6)
   built by `hh_php_service_apply` from a private config under
   `/etc/hearthost/php/<user>/`, pinned `Slice=user-<uid>.slice`. Do NOT drop

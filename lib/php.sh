@@ -319,7 +319,17 @@ hh_php_apply() {
       hh_php_disable_www "$v"
       local svc
       svc="$(hh_php_fpm_service "$v")"
-      systemctl enable --now "$svc" >/dev/null 2>&1 || systemctl restart "$svc"
+      # Tenants run dedicated masters (Phase 6); the shared daemon is only
+      # used by phpMyAdmin on the default version. Starting a shared daemon
+      # with no pools just lands it in "failed" (No pool defined). So only the
+      # default version's shared daemon runs; the rest stay installed but off.
+      if [[ "$v" == "$(hh_php_default)" ]]; then
+        systemctl enable --now "$svc" >/dev/null 2>&1 || systemctl restart "$svc"
+      else
+        systemctl disable "$svc" >/dev/null 2>&1 || true
+        systemctl stop "$svc" >/dev/null 2>&1 || true
+        systemctl reset-failed "$svc" >/dev/null 2>&1 || true
+      fi
       installed=$((installed + 1))
       hh_info "PHP $v FPM ready ($svc)"
     else

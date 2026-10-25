@@ -44,6 +44,10 @@ export HEARTHOST_ROOT
 . "$HEARTHOST_ROOT/lib/site.sh"
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/wp.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/backup.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/health.sh"
 
 hh_usage() {
   cat <<EOF
@@ -67,8 +71,13 @@ Commands:
   init ftp                  Phase 5: vsftpd (FTPS), opt-in via ftp_enable
   init slices               Phase 6: (re)apply per-tenant RAM/CPU caps
   init wp                   Phase 7: install wp-cli
+  init logrotate            Phase 8: per-tenant log rotation
+  init backups              Phase 8: nightly backup timer
   slice apply USER [--memory M] [--cpu C] [--tasks N]
                             Cap a tenant's slice (RAM/CPU/tasks)
+  backup run [USER]         Back up tenant files + databases (all if no USER)
+  backup list [USER]        List backup snapshots
+  health                    Service / FPM / cert / disk health (exit 1 on fail)
   php versions              Print configured PHP versions
   php pool USER VERSION     Render a per-user FPM pool (USER:USER)
   user add USER [--sftp-only] [--password PW] [--no-db] [--memory M] [--cpu C]
@@ -381,6 +390,12 @@ hh_cmd_init() {
       wp|wp-cli|wpcli)
         target=wp
         ;;
+      logrotate|logs)
+        target=logrotate
+        ;;
+      backups|backup)
+        target=backups
+        ;;
       *)
         hh_die "usage: hearthost init hardening|nginx|mariadb|ssl|php|sftp|ftp [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
         ;;
@@ -418,6 +433,12 @@ hh_cmd_init() {
       ;;
     wp)
       hh_wpcli_install
+      ;;
+    logrotate)
+      hh_logrotate_apply
+      ;;
+    backups)
+      hh_backup_timer_apply
       ;;
     mariadb)
       HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
@@ -484,6 +505,8 @@ main() {
     ftp) hh_ftp_cmd "$@" ;;
     db) hh_cmd_db "$@" ;;
     wp) hh_wp_cmd "$@" ;;
+    backup) hh_backup_cmd "$@" ;;
+    health) hh_health_run ;;
     *)
       hh_usage >&2
       hh_die "unknown command: $cmd"

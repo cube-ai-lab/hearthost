@@ -1,0 +1,9 @@
+[Unit]
+Description=Hearthost nightly tenant backup (files + databases)
+After=mariadb.service
+
+[Service]
+Type=oneshot
+ExecStart={{BIN}} backup run
+Nice=10
+IOSchedulingClass=idle

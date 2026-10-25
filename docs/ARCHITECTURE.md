@@ -137,7 +137,8 @@ copies into the mapped dest from `/etc/hearthost/ssl-map/{domain}`.
    into `user-<uid>.slice`, capped via `hearthost slice apply` / `init slices`
 7. WP-CLI, OPcache, optional FastCGI microcache — `hearthost init wp`,
    `wp install`, `db create`, per-tenant OPcache, `site add --microcache N`
-8. Backups, logrotate
+8. Backups, logrotate, health — `hearthost init logrotate`, `init backups`,
+   `backup run`, `health`
 9. Isolation tests and defensive scans
 
 ## SSH after Phase 1

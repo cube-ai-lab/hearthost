@@ -81,6 +81,10 @@ assert_fail() {
 . "$ROOT/lib/site.sh"
 # shellcheck source=/dev/null
 . "$ROOT/lib/wp.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/backup.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/health.sh"
 
 hh_config_load
 
@@ -449,6 +453,24 @@ assert_eq "$(hh_wpcli_path)" "/usr/local/bin/wp" "wp-cli path"
 assert_ok "dbname valid" hh_valid_dbname wp_main2
 assert_fail "dbname rejects dash" hh_valid_dbname bad-name
 assert_fail "dbname rejects uppercase" hh_valid_dbname Big
+
+printf '== unit: phase8 (backup/health) ==\n'
+assert_eq "$(hh_backup_root)" "/var/backups/hearthost" "backup root default"
+assert_eq "$(hh_backup_user_dir alice)" "/var/backups/hearthost/alice" "backup user dir"
+assert_eq "$(hh_backup_keep)" "7" "backup keep default"
+assert_ok "stamp is YYYYMMDD-HHMMSS" bash -c '[[ "'"$(hh_backup_stamp)"'" =~ ^[0-9]{8}-[0-9]{6}$ ]]'
+# Retention: keep newest 2 of 4, delete the 2 oldest (lexical = chronological).
+prune="$(printf '%s\n' 20240101-000000 20240102-000000 20240103-000000 20240104-000000 | hh_backup_prune_list 2)"
+assert_eq "$(printf '%s' "$prune" | tr '\n' ',')" "20240102-000000,20240101-000000" "prune keeps newest 2"
+assert_eq "$(printf '%s\n' a b c | hh_backup_prune_list 5)" "" "prune keeps all when under limit"
+# Health pure helpers.
+assert_eq "$(hh_health_cert_days /nonexistent.pem 2>/dev/null; echo $?)" "1" "cert days fails on missing file"
+tmpcert="$(mktemp)"
+openssl req -x509 -nodes -newkey rsa:2048 -days 30 -keyout /dev/null -out "$tmpcert" -subj "/CN=t" >/dev/null 2>&1
+cert_days="$(hh_health_cert_days "$tmpcert")"
+assert_ok "cert days ~30 for a 30-day cert" bash -c "[[ '$cert_days' -ge 28 && '$cert_days' -le 30 ]]"
+rm -f "$tmpcert"
+assert_ok "disk pct is a number" bash -c '[[ "'"$(hh_health_disk_pct /)"'" =~ ^[0-9]+$ ]]'
 
 printf '== unit: slice ==\n'
 assert_eq "$(hh_systemd_cpu_quota 100%)" "100%" "cpu quota 100%"

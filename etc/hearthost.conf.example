@@ -66,5 +66,12 @@ wp_db_name=wp
 letsencrypt_email=
 tls_min=TLSv1.2
 
+# Backups and health (Phase 8)
+backup_dir=/var/backups/hearthost
+backup_keep=7
+# health thresholds
+cert_warn_days=14
+disk_warn_pct=85
+
 # Admin
 log_level=info

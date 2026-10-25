@@ -126,7 +126,8 @@ copies into the mapped dest from `/etc/hearthost/ssl-map/{domain}`.
 2. Nginx + TLS templates — `hearthost init nginx`
 3. MariaDB + phpMyAdmin + Let's Encrypt — `hearthost init mariadb`
 4. Multi-PHP FPM 8.2–8.5 — `hearthost init php`
-5. `user` / `site` CLI, SFTP, vsftpd
+5. `user` / `site` CLI, SFTP chroot, vsftpd — `hearthost user add`,
+   `site add`, `init sftp`, `init ftp`
 6. systemd slices at 1G / 1 CPU
 7. WP-CLI, OPcache, optional FastCGI microcache
 8. Backups, logrotate

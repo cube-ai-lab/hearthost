@@ -146,6 +146,30 @@ hh_harden_autoupdates() {
   esac
 }
 
+# Phase 5 SFTP chroot: ensure both groups exist, (re)install the sshd policy
+# drop-in (which now carries the Match Group hearthost-sftp jail) and reload.
+hh_sftp_apply() {
+  hh_require_root
+  hh_os_load
+  hh_os_supported || hh_die "unsupported OS: $(hh_os_pretty). Need $(hh_os_supported_list)"
+  hh_config_load
+  local root ssh_group sftp_group
+  root="$(hearthost_root)"
+  ssh_group="$(hh_conf ssh_group hearthost-ssh)"
+  sftp_group="$(hh_conf sftp_group hearthost-sftp)"
+  hh_ensure_group "$ssh_group"
+  hh_ensure_group "$sftp_group"
+  mkdir -p /etc/ssh/sshd_config.d
+  hh_backup_file /etc/ssh/sshd_config.d/60-hearthost.conf >/dev/null
+  hh_install_template "$root/templates/ssh/60-hearthost.conf" \
+    /etc/ssh/sshd_config.d/60-hearthost.conf 0644
+  if ! sshd -t; then
+    hh_die "sshd -t failed with the SFTP policy; not reloading"
+  fi
+  hh_sshd_reload
+  hh_info "SFTP chroot policy active (group $sftp_group; create jailed tenants with user add --sftp-only)"
+}
+
 hh_harden_apply() {
   hh_require_root
   hh_os_load

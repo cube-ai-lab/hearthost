@@ -31,9 +31,12 @@ connect to that user’s PHP-FPM socket.
 
 ## Status
 
-Phase 4 is available as `hearthost init php`: PHP-FPM 8.2–8.5 (ondrej/php on
-Ubuntu, Remi on AlmaLinux). Each tenant pool runs as that Unix user.
-phpMyAdmin stays on the `hearthost-pma` pool.
+Phase 5 is available: tenant and site lifecycle. `hearthost user add` creates
+the Unix account, home layout, access group, and MariaDB grant; `site add`
+provisions a vhost, per-user PHP pool, and TLS for any domain; `init sftp`
+installs the SFTP chroot policy and `init ftp` installs vsftpd (FTPS, opt-in).
+Phases 0–4 remain: hardening, Nginx + TLS, MariaDB + phpMyAdmin + Let's
+Encrypt, and multi-PHP 8.2–8.5 pools.
 
 ```bash
 ./bin/hearthost os
@@ -41,6 +44,10 @@ phpMyAdmin stays on the `hearthost-pma` pool.
 ./bin/hearthost init nginx
 ./bin/hearthost init mariadb --phpmyadmin-host pma.example.com --letsencrypt-email ops@example.com
 ./bin/hearthost init php
+./bin/hearthost init sftp
+./bin/hearthost init ftp            # only if ftp_enable=yes
+./bin/hearthost user add alice
+./bin/hearthost site add alice example.com --app wordpress --primary --alias www.example.com
 ./tests/run.sh
 ```
 

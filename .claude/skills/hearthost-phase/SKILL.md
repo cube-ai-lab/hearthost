@@ -63,5 +63,9 @@ and `./bin/hearthost doctor --stack`.
   `hh_nginx_subst` does; unquoted, bash ≥ 5.2 expands `&` to the match.
 - Tenant state goes through `hh_user_state` / `hh_site_state`
   (`/etc/hearthost/{users,sites}.d`). Set `HEARTHOST_STATE_DIR` in tests.
-- SSH `AllowGroups hearthost-ssh` applies to everyone: SFTP-only tenants
-  must also be in that group (or the drop-in needs a `Match Group` block).
+- SFTP chroot: `AllowGroups` lists both `hearthost-ssh` and
+  `hearthost-sftp`; `Match Group hearthost-sftp` chroots to `%h`, which
+  requires the home *inode* owned by root (`user add --sftp-only` sets
+  root:user 750). Shell tenants keep user:user 711 and full SSH.
+- `user del` detaches the tenant's sites (via `hh_site_del --keep-data`)
+  before `userdel`; both keep tenant files unless `--purge`.

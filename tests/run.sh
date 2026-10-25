@@ -72,6 +72,10 @@ assert_fail() {
 # shellcheck source=/dev/null
 . "$ROOT/lib/doctor.sh"
 # shellcheck source=/dev/null
+. "$ROOT/lib/ftp.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/user.sh"
+# shellcheck source=/dev/null
 . "$ROOT/lib/site.sh"
 
 hh_config_load
@@ -339,7 +343,7 @@ hh_config_load
 
 printf '== unit: cli ==\n'
 CLI="$ROOT/bin/hearthost"
-assert_eq "$("$CLI" version)" "0.6.0" "cli version"
+assert_eq "$("$CLI" version)" "$(tr -d '[:space:]' <"$ROOT/VERSION")" "cli version matches VERSION file"
 assert_eq "$("$CLI" path user alice)" "/home/alice" "cli path user"
 assert_eq "$("$CLI" path docroot alice example.com --primary)" "/home/alice/public_html" "cli primary docroot"
 assert_eq "$("$CLI" path docroot alice blog.example.com)" "/home/alice/blog.example.com" "cli addon docroot"
@@ -383,6 +387,39 @@ assert_ok "state yaml php quoted" grep -q '^php: "8.3"$' <<<"$site_yaml"
 assert_ok "state yaml aliases" grep -q '^aliases: \[www.example.com\]$' <<<"$site_yaml"
 addon_yaml="$(hh_site_state_yaml alice blog.example.com no 8.4 php no "")"
 assert_ok "addon docroot is /home/user/domain" grep -q '^docroot: /home/alice/blog.example.com$' <<<"$addon_yaml"
+
+printf '== unit: user ==\n'
+assert_eq "$(hh_user_shell shell)" "/bin/bash" "shell tenant gets bash"
+assert_eq "$(hh_user_shell sftp-only)" "/usr/sbin/nologin" "sftp-only gets nologin"
+assert_eq "$(hh_user_access_group shell)" "hearthost-ssh" "shell tenant joins ssh group"
+assert_eq "$(hh_user_access_group sftp-only)" "hearthost-sftp" "sftp tenant joins sftp group"
+assert_eq "$(hh_user_home_owner shell alice)" "alice" "shell home owned by user"
+assert_eq "$(hh_user_home_owner sftp-only alice)" "root" "sftp jail home owned by root"
+assert_eq "$(hh_user_home_mode shell)" "711" "shell home 711"
+assert_eq "$(hh_user_home_mode sftp-only)" "750" "sftp jail home 750"
+layout_spec="$(hh_user_layout_spec)"
+assert_ok "layout includes public_html" grep -q '^public_html 755$' <<<"$layout_spec"
+assert_ok "layout includes ssl 711" grep -q '^ssl 711$' <<<"$layout_spec"
+uy="$(hh_user_state_yaml alice shell /bin/bash 1G 100% 120)"
+assert_ok "user yaml ssh true for shell" grep -q '^ssh: true$' <<<"$uy"
+sy="$(hh_user_state_yaml bob sftp-only /usr/sbin/nologin 1G 100% 120)"
+assert_ok "user yaml ssh false for sftp-only" grep -q '^ssh: false$' <<<"$sy"
+assert_ok "user yaml records username" grep -q '^username: bob$' <<<"$sy"
+
+printf '== unit: ftp ==\n'
+ftp_list="$(mktemp)"
+hh_ftp_userlist() { printf '%s\n' "$ftp_list"; }
+hh_ftp_allow_user alice
+hh_ftp_allow_user alice   # idempotent
+assert_eq "$(grep -c '^alice$' "$ftp_list")" "1" "ftp allow is idempotent"
+hh_ftp_allow_user bob
+hh_ftp_deny_user alice
+assert_fail "alice removed from ftp list" grep -qx alice "$ftp_list"
+assert_ok "bob remains on ftp list" grep -qx bob "$ftp_list"
+assert_fail "reserved user refused on ftp list" hh_ftp_allow_user root
+unset -f hh_ftp_userlist
+rm -f "$ftp_list"
+assert_eq "$(hh_ftp_conf_path)" "/etc/vsftpd.conf" "debian vsftpd conf path"
 
 printf '== unit: doctor php state ==\n'
 # Only *.conf (not *.disabled) counts as a loadable pool.

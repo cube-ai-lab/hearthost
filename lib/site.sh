@@ -153,3 +153,56 @@ hh_site_add() {
 
   hh_info "site $domain is live (https://$domain/)"
 }
+
+# hearthost site del DOMAIN [--purge | --keep-data]
+# Removes the vhost and state record. Tenant files under the docroot are kept
+# unless --purge. The shared per-user PHP pool is left (other sites use it).
+hh_site_del() {
+  hh_require_root
+  hh_os_load
+  hh_config_load
+
+  local domain="${1:-}"
+  shift || true
+  local purge=no
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --purge) purge=yes ;;
+      --keep-data) purge=no ;;
+      *) hh_die "usage: hearthost site del DOMAIN [--purge]" ;;
+    esac
+    shift
+  done
+
+  [[ -n "$domain" ]] || hh_die "usage: hearthost site del DOMAIN [--purge]"
+  hh_valid_domain "$domain" || hh_die "invalid domain: $domain"
+  domain="${domain,,}"
+
+  local site_file state user docroot
+  site_file="$(hh_nginx_site_file "$domain")"
+  state="$(hh_site_state "$domain")"
+
+  case "$(hh_os_family)" in
+    debian) rm -f "$(hh_nginx_sites_enabled)/${domain}.conf" ;;
+  esac
+  rm -f "$site_file"
+  if command -v nginx >/dev/null 2>&1; then
+    if nginx -t >/dev/null 2>&1; then
+      hh_nginx_reload
+    else
+      hh_warn "nginx -t failed after removing $domain; check other vhosts"
+    fi
+  fi
+
+  if [[ "$purge" == yes && -f "$state" ]]; then
+    user="$(sed -n 's/^user:[[:space:]]*//p' "$state" | head -1)"
+    docroot="$(sed -n 's/^docroot:[[:space:]]*//p' "$state" | head -1)"
+    if [[ -n "$user" && -n "$docroot" && "$docroot" == "$(hh_user_home "$user")"/* ]]; then
+      rm -rf "${docroot:?}"
+      hh_warn "purged docroot $docroot"
+    fi
+  fi
+
+  rm -f "$state"
+  hh_info "site $domain removed"
+}

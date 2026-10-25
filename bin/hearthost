@@ -35,6 +35,10 @@ export HEARTHOST_ROOT
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/phpmyadmin.sh"
 # shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/ftp.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/user.sh"
+# shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/site.sh"
 
 hh_usage() {
@@ -55,11 +59,18 @@ Commands:
                             Phase 3: MariaDB, phpMyAdmin, certbot
   init ssl                  Install certbot, HTTP-01 webroot, renew hook
   init php                  Phase 4: PHP-FPM 8.2–8.5 (ondrej/php or Remi)
+  init sftp                 Phase 5: SFTP chroot policy (reload sshd)
+  init ftp                  Phase 5: vsftpd (FTPS), opt-in via ftp_enable
   php versions              Print configured PHP versions
   php pool USER VERSION     Render a per-user FPM pool (USER:USER)
+  user add USER [--sftp-only] [--password PW] [--no-db] [--memory M] [--cpu C]
+                            Create a tenant: account, home, group, DB grant
+  user del USER [--purge]   Remove a tenant (keeps data unless --purge)
   site add USER DOMAIN [--php V] [--app wordpress|laravel|php]
            [--primary] [--alias NAME]... [--no-ssl]
                             Provision a vhost + PHP pool + TLS for a domain
+  site del DOMAIN [--purge] Remove a site (keeps docroot unless --purge)
+  ftp allow|deny USER       Add/remove a tenant from the FTP allow-list
   ssl issue --user USER DOMAIN
                             Issue Let's Encrypt cert into /home/{user}/ssl/{domain}/
   ssl issue --system DOMAIN Issue cert into /etc/hearthost/ssl/{domain}/
@@ -77,7 +88,7 @@ Commands:
   help                      This message
 
 Not yet implemented (later phases):
-  user add/del, site del, db create, wp install
+  db create, wp install
 EOF
 }
 
@@ -86,7 +97,18 @@ hh_cmd_site() {
   shift || true
   case "$sub" in
     add) hh_site_add "$@" ;;
-    *) hh_die "usage: hearthost site add USER DOMAIN [--php V] [--app A] [--primary] [--alias NAME]... [--no-ssl]" ;;
+    del|rm|remove) hh_site_del "$@" ;;
+    *) hh_die "usage: hearthost site add USER DOMAIN [...] | site del DOMAIN [--purge]" ;;
+  esac
+}
+
+hh_cmd_user() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+    add|create) hh_user_add "$@" ;;
+    del|rm|remove) hh_user_del "$@" ;;
+    *) hh_die "usage: hearthost user add USER [...] | user del USER [--purge]" ;;
   esac
 }
 
@@ -304,8 +326,14 @@ hh_cmd_init() {
       php|php-fpm|phase4)
         target=php
         ;;
+      sftp)
+        target=sftp
+        ;;
+      ftp|vsftpd)
+        target=ftp
+        ;;
       *)
-        hh_die "usage: hearthost init hardening|nginx|mariadb|ssl|php [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
+        hh_die "usage: hearthost init hardening|nginx|mariadb|ssl|php|sftp|ftp [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
         ;;
     esac
     shift
@@ -330,13 +358,19 @@ hh_cmd_init() {
     php)
       hh_php_apply
       ;;
+    sftp)
+      hh_sftp_apply
+      ;;
+    ftp)
+      hh_ftp_apply
+      ;;
     mariadb)
       HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
       export HEARTHOST_PHPMYADMIN_HOST_FLAG
       hh_db_stack_apply
       ;;
     *)
-      hh_die "usage: hearthost init hardening|nginx|mariadb|ssl|php [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
+      hh_die "usage: hearthost init hardening|nginx|mariadb|ssl|php|sftp|ftp [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
       ;;
   esac
 }
@@ -390,7 +424,9 @@ main() {
     ssl) hh_cmd_ssl "$@" ;;
     php) hh_cmd_php "$@" ;;
     site) hh_cmd_site "$@" ;;
-    user|db|wp)
+    user) hh_cmd_user "$@" ;;
+    ftp) hh_ftp_cmd "$@" ;;
+    db|wp)
       hh_die "'$cmd' is scheduled for a later phase. See docs/ARCHITECTURE.md."
       ;;
     *)

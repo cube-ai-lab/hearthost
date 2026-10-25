@@ -2,7 +2,7 @@
 # Hearthost CLI — multi-tenant WordPress/Laravel hosting without a panel.
 set -euo pipefail
 
-HEARTHOST_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HEARTHOST_BIN="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 HEARTHOST_ROOT="$(cd "$HEARTHOST_BIN/.." && pwd)"
 export HEARTHOST_ROOT
 

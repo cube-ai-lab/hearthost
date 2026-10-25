@@ -118,8 +118,36 @@ hh_mariadb_apply() {
 
   if mysqladmin --protocol=socket -uroot ping >/dev/null 2>&1; then
     mysql --protocol=socket -uroot -e "DELETE FROM mysql.user WHERE User=''; DROP DATABASE IF EXISTS test; FLUSH PRIVILEGES;" >/dev/null 2>&1 || true
+    hh_mariadb_root_password
     hh_info "MariaDB listening on $bind"
   else
     hh_die "MariaDB installed but root unix_socket login failed"
   fi
+}
+
+hh_mariadb_root_password() {
+  local passfile=/etc/hearthost/mariadb_root_pass
+  local mycnf=/root/.my.cnf
+  local pass
+
+  if [[ -s "$passfile" ]]; then
+    pass="$(tr -d '\n' <"$passfile")"
+  else
+    pass="$(openssl rand -base64 18)"
+    mkdir -p /etc/hearthost
+    printf '%s' "$pass" >"$passfile"
+    chmod 600 "$passfile"
+  fi
+
+  mysql --protocol=socket -uroot -e \
+    "ALTER USER 'root'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('$pass') OR unix_socket; FLUSH PRIVILEGES;" \
+    2>/dev/null || true
+
+  cat >"$mycnf" <<EOF
+[client]
+user=root
+password=$pass
+EOF
+  chmod 600 "$mycnf"
+  hh_info "root MySQL password set (/root/.my.cnf)"
 }

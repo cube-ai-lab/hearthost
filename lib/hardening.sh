@@ -79,12 +79,16 @@ hh_ufw_allow_tcp() {
 hh_harden_packages() {
   case "$(hh_os_family)" in
     debian)
-      hh_info "installing packages (fail2ban, ufw, unattended-upgrades)"
-      hh_pkg_install fail2ban ufw unattended-upgrades
+      hh_info "installing common utilities and security packages"
+      hh_pkg_install curl wget unzip zip tar gzip bzip2 git rsync htop \
+        nano vim screen tmux cron openssl ca-certificates \
+        fail2ban ufw unattended-upgrades
       ;;
     rhel)
-      hh_info "installing packages (fail2ban, firewalld, dnf-automatic)"
-      hh_pkg_install fail2ban firewalld dnf-automatic
+      hh_info "installing common utilities and security packages"
+      hh_pkg_install curl wget unzip zip tar gzip bzip2 git rsync htop \
+        nano vim screen tmux cronie openssl ca-certificates \
+        fail2ban firewalld dnf-automatic
       ;;
     *)
       hh_die "unsupported OS family $(hh_os_family)"

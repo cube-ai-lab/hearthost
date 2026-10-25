@@ -89,6 +89,96 @@ hh_db_create() {
   printf '%s\n' "$dbname"
 }
 
+hh_db_user_create() {
+  hh_require_root
+  hh_os_load
+  hh_config_load
+
+  local user="" dbname="" dbuser="" password=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --password) password="${2:-}"; shift ;;
+      --password=*) password="${1#*=}" ;;
+      *)
+        if [[ -z "$user" ]]; then user="$1"
+        elif [[ -z "$dbname" ]]; then dbname="$1"
+        elif [[ -z "$dbuser" ]]; then dbuser="$1"
+        else hh_die "usage: hearthost db user TENANT DBNAME DBUSER [--password PW]"
+        fi ;;
+    esac
+    shift
+  done
+
+  [[ -n "$user" && -n "$dbname" && -n "$dbuser" ]] || \
+    hh_die "usage: hearthost db user TENANT DBNAME DBUSER [--password PW]"
+  hh_valid_username "$user" || hh_die "invalid tenant: $user"
+  getent passwd "$user" >/dev/null || hh_die "tenant $user does not exist"
+  mysqladmin --protocol=socket -uroot ping >/dev/null 2>&1 || hh_die "MariaDB not reachable"
+
+  local sep bare fulldb
+  sep="$(hh_conf mysql_prefix_separator _)"
+  bare="$dbname"
+  [[ "$bare" == "${user}${sep}"* ]] && bare="${bare#"${user}${sep}"}"
+  fulldb="$(hh_db_name "$user" "$bare")"
+
+  mysql --protocol=socket -uroot -N -B -e "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='$fulldb';" \
+    | grep -q . || hh_die "database $fulldb does not exist (create it first: hearthost db create $user $bare)"
+
+  local fulluser="${user}${sep}${dbuser}"
+  [[ ${#fulluser} -le 80 ]] || hh_die "db username too long: $fulluser (max 80)"
+
+  if [[ -z "$password" ]]; then
+    password="$(openssl rand -base64 18)"
+  fi
+
+  mysql --protocol=socket -uroot <<SQL || hh_die "failed to create db user $fulluser"
+CREATE USER IF NOT EXISTS '${fulluser}'@'localhost' IDENTIFIED BY '${password}';
+ALTER USER '${fulluser}'@'localhost' IDENTIFIED BY '${password}';
+GRANT ALL PRIVILEGES ON \`${fulldb}\`.* TO '${fulluser}'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+
+  hh_info "db user $fulluser created with access to $fulldb"
+  printf 'database=%s\nusername=%s\npassword=%s\nhost=localhost\n' "$fulldb" "$fulluser" "$password"
+}
+
+hh_db_user_list() {
+  hh_require_root
+  hh_config_load
+  local user="${1:-}"
+  [[ -n "$user" ]] || hh_die "usage: hearthost db user list TENANT"
+  hh_valid_username "$user" || hh_die "invalid tenant: $user"
+  mysqladmin --protocol=socket -uroot ping >/dev/null 2>&1 || hh_die "MariaDB not reachable"
+
+  local sep pattern
+  sep="$(hh_conf mysql_prefix_separator _)"
+  pattern="${user}${sep}%"
+
+  mysql --protocol=socket -uroot -N -B -e \
+    "SELECT u.User, GROUP_CONCAT(d.Db ORDER BY d.Db SEPARATOR ', ')
+     FROM mysql.user u
+     LEFT JOIN mysql.db d ON d.User = u.User AND d.Host = u.Host
+     WHERE u.User LIKE '$pattern' AND u.Host = 'localhost'
+     GROUP BY u.User;" 2>/dev/null
+}
+
+hh_db_user_del() {
+  hh_require_root
+  hh_config_load
+  local user="${1:-}" dbuser="${2:-}"
+  [[ -n "$user" && -n "$dbuser" ]] || hh_die "usage: hearthost db user del TENANT DBUSER"
+  hh_valid_username "$user" || hh_die "invalid tenant: $user"
+  mysqladmin --protocol=socket -uroot ping >/dev/null 2>&1 || hh_die "MariaDB not reachable"
+
+  local sep fulluser
+  sep="$(hh_conf mysql_prefix_separator _)"
+  fulluser="${user}${sep}${dbuser}"
+
+  mysql --protocol=socket -uroot -e "DROP USER IF EXISTS '${fulluser}'@'localhost'; FLUSH PRIVILEGES;" \
+    || hh_die "failed to drop db user $fulluser"
+  hh_info "db user $fulluser removed"
+}
+
 hh_mariadb_apply() {
   hh_require_root
   hh_os_load

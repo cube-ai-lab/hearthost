@@ -91,6 +91,10 @@ Commands:
                             Provision a vhost + PHP pool + TLS for a domain
   site del DOMAIN [--purge] Remove a site (keeps docroot unless --purge)
   db create USER NAME       Create database {user}_{name} + tenant grant
+  db user create TENANT DBNAME DBUSER [--password PW]
+                            Create a DB user {tenant}_{dbuser} with access to one DB
+  db user list TENANT       List per-database users for a tenant
+  db user del TENANT DBUSER Remove a per-database user
   wp install USER DOMAIN [--title T] [--admin-user U] [--admin-email E] [--admin-password PW]
                             Install WordPress into the site docroot
   ftp allow|deny USER       Add/remove a tenant from the FTP allow-list
@@ -118,7 +122,17 @@ hh_cmd_db() {
   shift || true
   case "$sub" in
     create) hh_db_create "$@" ;;
-    *) hh_die "usage: hearthost db create USER NAME" ;;
+    user)
+      local action="${1:-}"
+      shift || true
+      case "$action" in
+        create|add) hh_db_user_create "$@" ;;
+        list|ls) hh_db_user_list "$@" ;;
+        del|rm|remove) hh_db_user_del "$@" ;;
+        *) hh_die "usage: hearthost db user create|list|del TENANT ..." ;;
+      esac
+      ;;
+    *) hh_die "usage: hearthost db create USER NAME | db user create|list|del ..." ;;
   esac
 }
 

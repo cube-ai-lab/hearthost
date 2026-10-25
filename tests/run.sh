@@ -66,6 +66,8 @@ assert_fail() {
 # shellcheck source=/dev/null
 . "$ROOT/lib/mariadb.sh"
 # shellcheck source=/dev/null
+. "$ROOT/lib/php.sh"
+# shellcheck source=/dev/null
 . "$ROOT/lib/phpmyadmin.sh"
 
 hh_config_load
@@ -121,6 +123,7 @@ assert_ok "site_ops-1 is a valid user" hh_valid_username site_ops-1
 assert_fail "root is reserved" hh_valid_username root
 assert_fail "www-data is reserved" hh_valid_username www-data
 assert_fail "mysql is reserved" hh_valid_username mysql
+assert_fail "hearthost-pma is reserved" hh_valid_username hearthost-pma
 assert_fail "uppercase rejected" hh_valid_username Alice
 assert_fail "path user rejected" hh_valid_username '../alice'
 assert_fail "slash user rejected" hh_valid_username 'al/ice'
@@ -275,6 +278,33 @@ unset HEARTHOST_OS_RELEASE
 hh_os_load
 rm -f "$ngin" "$ngout"
 
+printf '== unit: php ==\n'
+load_os_fixture ubuntu-24.04
+assert_eq "$(hh_php_fpm_service 8.3)" "php8.3-fpm" "ubuntu fpm service"
+assert_eq "$(hh_php_fpm_pool_dir 8.3)" "/etc/php/8.3/fpm/pool.d" "ubuntu pool dir"
+assert_eq "$(hh_php_bin 8.3)" "/usr/bin/php8.3" "ubuntu php bin"
+load_os_fixture almalinux-9
+assert_eq "$(hh_php_fpm_service 8.3)" "php83-php-fpm" "alma fpm service"
+assert_eq "$(hh_php_ver_nodot 8.4)" "84" "remi version prefix"
+php_vers="$(hh_php_versions | tr '\n' ' ')"
+if [[ "$php_vers" == *8.2* && "$php_vers" == *8.5* ]]; then
+  printf '  ok   configured versions include 8.2 and 8.5\n'
+  PASS=$((PASS + 1))
+else
+  printf '  FAIL configured versions include 8.2 and 8.5 (%s)\n' "$php_vers"
+  FAIL=$((FAIL + 1))
+fi
+poolf="$(mktemp)"
+load_os_fixture ubuntu-24.04
+hh_php_render_pool alice 8.3 "$poolf"
+assert_ok "pool runs as alice" grep -q '^user = alice' "$poolf"
+assert_ok "pool socket is per user" grep -q 'php8.3-fpm-alice.sock' "$poolf"
+assert_ok "pool listen.group is web daemon" grep -q 'listen.group = www-data' "$poolf"
+assert_ok "pool pm is ondemand" grep -q 'pm = ondemand' "$poolf"
+rm -f "$poolf"
+unset HEARTHOST_OS_RELEASE
+hh_os_load
+
 printf '== unit: config ==\n'
 cfg="$(mktemp)"
 printf 'phpmyadmin_host=\n' >"$cfg"
@@ -299,7 +329,7 @@ hh_config_load
 
 printf '== unit: cli ==\n'
 CLI="$ROOT/bin/hearthost"
-assert_eq "$("$CLI" version)" "0.5.0" "cli version"
+assert_eq "$("$CLI" version)" "0.6.0" "cli version"
 assert_eq "$("$CLI" path user alice)" "/home/alice" "cli path user"
 assert_eq "$("$CLI" path docroot alice example.com --primary)" "/home/alice/public_html" "cli primary docroot"
 assert_eq "$("$CLI" path docroot alice blog.example.com)" "/home/alice/blog.example.com" "cli addon docroot"
@@ -313,6 +343,8 @@ assert_eq "$("$CLI" path perms home)" "711" "cli home mode"
 assert_eq "$("$CLI" path perms secret)" "640" "cli secret mode"
 assert_eq "$("$CLI" path db alice wp)" "alice_wp" "cli db name"
 assert_eq "$("$CLI" quota children 1G)" "3" "cli children"
+assert_ok "cli php versions lists 8.3" bash -c '"$0" php versions | grep -qx 8.3' "$CLI"
+assert_ok "cli php pool mentions alice" bash -c '"$0" php pool alice 8.3 | grep -q alice' "$CLI"
 assert_ok "cli validate user" "$CLI" validate user alice
 assert_fail "cli reject root" "$CLI" validate user root
 assert_fail "cli reject php 8.1" "$CLI" validate php 8.1

@@ -298,6 +298,29 @@ hh_doctor_run() {
     hh_doctor_print info "phpMyAdmin not installed yet (Phase 3)"
   fi
 
+  local php_ver php_ok=0 php_missing=()
+  while IFS= read -r php_ver; do
+    [[ -n "$php_ver" ]] || continue
+    if systemctl is-active --quiet "$(hh_php_fpm_service "$php_ver")" 2>/dev/null \
+      || hh_php_version_installed "$php_ver"; then
+      hh_doctor_print ok "PHP $php_ver FPM present"
+      php_ok=$((php_ok + 1))
+    else
+      php_missing+=("$php_ver")
+    fi
+  done < <(hh_php_versions 2>/dev/null || printf '%s\n' 8.2 8.3 8.4 8.5)
+  if (( php_ok == 0 )); then
+    if [[ "$mode" == "stack" ]]; then
+      hh_doctor_print fail "no PHP-FPM versions installed"
+      fail=$((fail + 1))
+    else
+      hh_doctor_print info "PHP-FPM 8.2–8.5 not installed yet (Phase 4)"
+    fi
+  elif ((${#php_missing[@]})); then
+    hh_doctor_print warn "PHP missing: ${php_missing[*]}"
+    warn=$((warn + 1))
+  fi
+
   printf '\n%d failure(s), %d warning(s)\n' "$fail" "$warn"
   if (( fail > 0 )); then
     return 1

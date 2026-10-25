@@ -6,7 +6,7 @@ if [[ -n "${HEARTHOST_VALIDATE_LOADED:-}" ]]; then
 fi
 HEARTHOST_VALIDATE_LOADED=1
 
-HH_RESERVED_USERS='root daemon bin sys sync games man lp mail news uucp proxy www-data backup list irc gnats nobody systemd-network systemd-resolve systemd-timesync messagebus syslog _apt uuidd tcpdump sshd mysql mariadb nginx apache2 postfix dovecot opendkim fail2ban clamav redis memcache memcached postgres ftp vsftpd proftpd hearthost admin ubuntu debian lxd pollinate landscape tss fwupd-refresh polkitd'
+HH_RESERVED_USERS='root daemon bin sys sync games man lp mail news uucp proxy www-data backup list irc gnats nobody systemd-network systemd-resolve systemd-timesync messagebus syslog _apt uuidd tcpdump sshd mysql mariadb nginx apache2 postfix dovecot opendkim fail2ban clamav redis memcache memcached postgres ftp vsftpd proftpd hearthost hearthost-pma admin ubuntu debian lxd pollinate landscape tss fwupd-refresh polkitd'
 
 hh_valid_username() {
   local name="${1:-}"

@@ -31,6 +31,8 @@ export HEARTHOST_ROOT
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/mariadb.sh"
 # shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/php.sh"
+# shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/phpmyadmin.sh"
 
 hh_usage() {
@@ -50,6 +52,9 @@ Commands:
   init mariadb [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]
                             Phase 3: MariaDB, phpMyAdmin, certbot
   init ssl                  Install certbot, HTTP-01 webroot, renew hook
+  init php                  Phase 4: PHP-FPM 8.2–8.5 (ondrej/php or Remi)
+  php versions              Print configured PHP versions
+  php pool USER VERSION     Render a per-user FPM pool (USER:USER)
   ssl issue --user USER DOMAIN
                             Issue Let's Encrypt cert into /home/{user}/ssl/{domain}/
   ssl issue --system DOMAIN Issue cert into /etc/hearthost/ssl/{domain}/
@@ -67,7 +72,7 @@ Commands:
   help                      This message
 
 Not yet implemented (later phases):
-  user add/del, site add/del, php set, db create, wp install
+  user add/del, site add/del, db create, wp install
 EOF
 }
 
@@ -282,8 +287,11 @@ hh_cmd_init() {
       ssl|certbot)
         target=ssl
         ;;
+      php|php-fpm|phase4)
+        target=php
+        ;;
       *)
-        hh_die "usage: hearthost init hardening|nginx|mariadb|ssl [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
+        hh_die "usage: hearthost init hardening|nginx|mariadb|ssl|php [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
         ;;
     esac
     shift
@@ -305,13 +313,45 @@ hh_cmd_init() {
     ssl)
       hh_ssl_apply
       ;;
+    php)
+      hh_php_apply
+      ;;
     mariadb)
       HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
       export HEARTHOST_PHPMYADMIN_HOST_FLAG
       hh_db_stack_apply
       ;;
     *)
-      hh_die "usage: hearthost init hardening|nginx|mariadb|ssl [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
+      hh_die "usage: hearthost init hardening|nginx|mariadb|ssl|php [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
+      ;;
+  esac
+}
+
+hh_cmd_php() {
+  hh_config_load
+  hh_os_load
+  local kind="${1:-}"
+  shift || true
+  case "$kind" in
+    versions|"")
+      hh_php_versions
+      ;;
+    pool)
+      local user="${1:-}" ver="${2:-}" dest="${3:-}"
+      [[ -n "$user" && -n "$ver" ]] || hh_die "usage: hearthost php pool USER VERSION"
+      hh_valid_username "$user" || hh_die "invalid username: $user"
+      hh_php_allowed "$ver" || hh_die "PHP $ver is not in php_versions"
+      if [[ -z "$dest" ]]; then
+        dest="$(mktemp)"
+        hh_php_render_pool "$user" "$ver" "$dest"
+        cat "$dest"
+        rm -f "$dest"
+      else
+        hh_php_render_pool "$user" "$ver" "$dest"
+      fi
+      ;;
+    *)
+      hh_die "usage: hearthost php versions | pool USER VERSION"
       ;;
   esac
 }
@@ -334,7 +374,8 @@ main() {
     help|-h|--help) hh_usage ;;
     init) hh_cmd_init "$@" ;;
     ssl) hh_cmd_ssl "$@" ;;
-    user|site|php|db|wp)
+    php) hh_cmd_php "$@" ;;
+    user|site|db|wp)
       hh_die "'$cmd' is scheduled for a later phase. See docs/ARCHITECTURE.md."
       ;;
     *)

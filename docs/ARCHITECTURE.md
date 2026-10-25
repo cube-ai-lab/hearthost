@@ -55,8 +55,15 @@ SSH, SFTP, and FTP land in the same user slice so RAM/CPU caps apply.
 
 Per domain, from `8.2 8.3 8.4 8.5`. Default `8.3`.
 
-LVE profile: one FPM service per `(php-version, user)` inside the user slice.
-That is how 1 GB RAM actually includes PHP workers, not only SSH.
+LVE profile: one FPM pool per `(php-version, user)` inside the user slice
+(`hearthost init php` installs the FPM daemons; `user`/`site` attach pools
+in Phase 5). That is how 1 GB RAM actually includes PHP workers, not only SSH.
+
+```bash
+hearthost init php
+hearthost php versions
+hearthost php pool alice 8.3
+```
 
 ## Databases
 
@@ -109,7 +116,7 @@ copies into the mapped dest from `/etc/hearthost/ssl-map/{domain}`.
 | Auto-updates | unattended-upgrades | dnf-automatic |
 | Nginx daemon (not file owner) | www-data | nginx |
 | SSH unit | `ssh.service` | `sshd.service` |
-| PHP later | ondrej/php | Remi (planned) |
+| PHP | ondrej/php 8.2–8.5 | Remi parallel php82–php85 |
 | MAC | AppArmor | SELinux stays enforcing |
 
 ## Phases
@@ -118,7 +125,7 @@ copies into the mapped dest from `/etc/hearthost/ssl-map/{domain}`.
 1. Hardening: firewall, SSH groups, sysctl, fail2ban — `hearthost init hardening`
 2. Nginx + TLS templates — `hearthost init nginx`
 3. MariaDB + phpMyAdmin + Let's Encrypt — `hearthost init mariadb`
-4. Multi-PHP FPM
+4. Multi-PHP FPM 8.2–8.5 — `hearthost init php`
 5. `user` / `site` CLI, SFTP, vsftpd
 6. systemd slices at 1G / 1 CPU
 7. WP-CLI, OPcache, optional FastCGI microcache

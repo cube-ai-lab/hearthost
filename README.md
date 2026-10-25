@@ -31,16 +31,16 @@ connect to that user’s PHP-FPM socket.
 
 ## Status
 
-Phase 3 is available as `hearthost init mariadb`: MariaDB on 127.0.0.1,
-phpMyAdmin on a dedicated hostname, and Let's Encrypt (certbot HTTP-01).
-Tenant PHP versions (8.2–8.5) are still Phase 4; phpMyAdmin uses the distro
-PHP-FPM pool `hearthost-pma` only.
+Phase 4 is available as `hearthost init php`: PHP-FPM 8.2–8.5 (ondrej/php on
+Ubuntu, Remi on AlmaLinux). Each tenant pool runs as that Unix user.
+phpMyAdmin stays on the `hearthost-pma` pool.
 
 ```bash
 ./bin/hearthost os
 ./bin/hearthost init hardening --phpmyadmin-host pma.example.com
 ./bin/hearthost init nginx
 ./bin/hearthost init mariadb --phpmyadmin-host pma.example.com --letsencrypt-email ops@example.com
+./bin/hearthost init php
 ./tests/run.sh
 ```
 

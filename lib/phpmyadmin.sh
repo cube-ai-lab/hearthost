@@ -15,6 +15,10 @@ hh_pma_open_basedir() {
 }
 
 hh_distro_php_fpm_pool_dir() {
+  if declare -F hh_php_fpm_pool_dir >/dev/null; then
+    hh_php_fpm_pool_dir "$(hh_php_default)"
+    return 0
+  fi
   local dirs=(/etc/php/*/fpm/pool.d)
   if [[ -d "${dirs[0]:-}" ]]; then
     printf '%s\n' "${dirs[0]}"
@@ -28,8 +32,12 @@ hh_distro_php_fpm_pool_dir() {
 }
 
 hh_distro_php_fpm_service() {
+  if declare -F hh_php_fpm_service >/dev/null; then
+    hh_php_fpm_service "$(hh_php_default)"
+    return 0
+  fi
   local unit
-  for unit in php8.5-fpm php8.4-fpm php8.3-fpm php8.2-fpm php-fpm; do
+  for unit in \n  php8.5-fpm php8.4-fpm php8.3-fpm php8.2-fpm php-fpm; then
     if systemctl cat "${unit}.service" >/dev/null 2>&1; then
       printf '%s\n' "$unit"
       return 0

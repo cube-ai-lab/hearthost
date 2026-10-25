@@ -31,13 +31,17 @@ connect to that user’s PHP-FPM socket.
 
 ## Status
 
-Phase 8 is available: operations. `hearthost init logrotate` rotates each
-tenant's logs, `init backups` enables a nightly timer, `backup run [USER]`
-archives tenant files + databases with retention, and `health` reports
-service/FPM/cert/disk problems (exit 1 on failure) for cron. Earlier phases:
-apps + performance (wp-cli, WordPress install, per-tenant OPcache, FastCGI
-microcache), per-tenant RAM/CPU slices, tenant/site lifecycle, SFTP/FTP,
-hardening, Nginx + TLS, MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.5.
+All nine phases are complete (v1.0.0). Phase 9 adds `hearthost audit` — a
+read-only defensive scan (network exposure, tenant file modes, PHP
+confinement, group membership, DB bind, SSH policy, per-tenant caps; exit 1 on
+any risk) — and `tests/live/phase9.sh`, which creates two ephemeral tenants
+and actively proves one cannot reach the other's files, PHP sandbox, or
+database, then removes them.
+
+Earlier phases: operations (logrotate, nightly backups, health), apps +
+performance (WordPress install, OPcache, FastCGI microcache), per-tenant
+RAM/CPU slices, tenant/site lifecycle, SFTP/FTP, hardening, Nginx + TLS,
+MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.5.
 
 ```bash
 ./bin/hearthost os
@@ -56,6 +60,7 @@ hardening, Nginx + TLS, MariaDB + phpMyAdmin + Let's Encrypt, multi-PHP 8.2–8.
 ./bin/hearthost init backups
 ./bin/hearthost backup run
 ./bin/hearthost health
+./bin/hearthost audit
 ./tests/run.sh
 ```
 

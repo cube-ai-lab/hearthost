@@ -85,6 +85,8 @@ assert_fail() {
 . "$ROOT/lib/backup.sh"
 # shellcheck source=/dev/null
 . "$ROOT/lib/health.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/audit.sh"
 
 hh_config_load
 
@@ -453,6 +455,22 @@ assert_eq "$(hh_wpcli_path)" "/usr/local/bin/wp" "wp-cli path"
 assert_ok "dbname valid" hh_valid_dbname wp_main2
 assert_fail "dbname rejects dash" hh_valid_dbname bad-name
 assert_fail "dbname rejects uppercase" hh_valid_dbname Big
+
+printf '== unit: phase9 (audit) ==\n'
+assert_ok "600 within 600" hh_audit_mode_within 600 600
+assert_ok "600 within 640" hh_audit_mode_within 600 640
+assert_ok "750 within 751" hh_audit_mode_within 750 751
+assert_ok "711 within 751 (traversable home ok)" hh_audit_mode_within 711 751
+assert_fail "640 not within 600 (group readable)" hh_audit_mode_within 640 600
+assert_fail "755 not within 751 (other readable)" hh_audit_mode_within 755 751
+assert_fail "770 not within 751 (group writable)" hh_audit_mode_within 770 751
+assert_fail "777 not within 711" hh_audit_mode_within 777 711
+assert_ok "port 443 public ok" hh_audit_public_port_ok 443
+assert_ok "port 22 public ok" hh_audit_public_port_ok 22
+assert_ok "ftp port public ok when enabled" hh_audit_public_port_ok 21
+assert_ok "pasv port in range ok" hh_audit_public_port_ok 40050
+assert_fail "port 3306 not public ok" hh_audit_public_port_ok 3306
+assert_fail "random port not public ok" hh_audit_public_port_ok 9999
 
 printf '== unit: phase8 (backup/health) ==\n'
 assert_eq "$(hh_backup_root)" "/var/backups/hearthost" "backup root default"

@@ -54,6 +54,16 @@ shellcheck -x bin/hearthost lib/*.sh   # if installed
 On the live server, run the new `init`/command, then `tests/live/phaseN.sh`
 and `./bin/hearthost doctor --stack`.
 
+## Verifying isolation
+
+- `hearthost audit` is the read-only defensive scan; `hh_audit_mode_within
+  actual max` checks a mode is no looser than `max` (home max is `0751` —
+  others may traverse (x) but not read/list or write).
+- `tests/live/phase9.sh` creates two ephemeral tenants (`hh_isoa`/`hh_isob`),
+  proves cross-tenant denial (files via 711+600, PHP via open_basedir,
+  DB via the `user_%` grant scope, FPM identity/slice), and self-cleans via
+  an EXIT trap. Run it after any change to perms, pools, grants, or slices.
+
 ## Known traps
 
 - Shared `phpX-fpm.service` daemons are vestigial after Phase 6 except the

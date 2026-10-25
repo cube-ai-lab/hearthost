@@ -139,7 +139,8 @@ copies into the mapped dest from `/etc/hearthost/ssl-map/{domain}`.
    `wp install`, `db create`, per-tenant OPcache, `site add --microcache N`
 8. Backups, logrotate, health — `hearthost init logrotate`, `init backups`,
    `backup run`, `health`
-9. Isolation tests and defensive scans
+9. Isolation tests and defensive scans — `hearthost audit`,
+   `tests/live/phase9.sh`
 
 ## SSH after Phase 1
 

@@ -48,6 +48,8 @@ export HEARTHOST_ROOT
 . "$HEARTHOST_ROOT/lib/backup.sh"
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/health.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/audit.sh"
 
 hh_usage() {
   cat <<EOF
@@ -78,6 +80,7 @@ Commands:
   backup run [USER]         Back up tenant files + databases (all if no USER)
   backup list [USER]        List backup snapshots
   health                    Service / FPM / cert / disk health (exit 1 on fail)
+  audit                     Defensive isolation scan (exit 1 on any risk)
   php versions              Print configured PHP versions
   php pool USER VERSION     Render a per-user FPM pool (USER:USER)
   user add USER [--sftp-only] [--password PW] [--no-db] [--memory M] [--cpu C]
@@ -507,6 +510,7 @@ main() {
     wp) hh_wp_cmd "$@" ;;
     backup) hh_backup_cmd "$@" ;;
     health) hh_health_run ;;
+    audit|scan) hh_audit_run ;;
     *)
       hh_usage >&2
       hh_die "unknown command: $cmd"

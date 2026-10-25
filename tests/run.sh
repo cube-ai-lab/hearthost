@@ -56,6 +56,8 @@ assert_fail() {
 # shellcheck source=/dev/null
 . "$ROOT/lib/os.sh"
 # shellcheck source=/dev/null
+. "$ROOT/lib/perms.sh"
+# shellcheck source=/dev/null
 . "$ROOT/lib/hardening.sh"
 
 hh_config_load
@@ -89,6 +91,19 @@ load_os_fixture debian-12
 assert_fail "Debian 12 not supported" hh_os_supported
 unset HEARTHOST_OS_RELEASE
 hh_os_load
+
+printf '== unit: perms ==\n'
+assert_eq "$(hh_perm_owner alice)" "alice:alice" "files owned by user:user"
+assert_eq "$(hh_perm_home)" "711" "home 711"
+assert_eq "$(hh_perm_webroot)" "755" "webroot 755"
+assert_eq "$(hh_perm_file)" "644" "files 644"
+assert_eq "$(hh_perm_secret)" "640" "secrets 640"
+assert_eq "$(hh_perm_logs)" "750" "logs 750"
+assert_eq "$(hh_perm_tmp)" "700" "tmp 700"
+assert_ok "www-data is the daemon not a tenant owner" hh_perm_is_web_daemon www-data
+assert_ok "nginx is the daemon not a tenant owner" hh_perm_is_web_daemon nginx
+assert_fail "alice is not a web daemon" hh_perm_is_web_daemon alice
+assert_fail "refuse chown to www-data" hh_perm_apply_dir /tmp www-data 755
 
 printf '== unit: validate ==\n'
 assert_ok "alice is a valid user" hh_valid_username alice
@@ -187,10 +202,13 @@ hh_config_load
 
 printf '== unit: cli ==\n'
 CLI="$ROOT/bin/hearthost"
-assert_eq "$("$CLI" version)" "0.3.0" "cli version"
+assert_eq "$("$CLI" version)" "0.3.1" "cli version"
 assert_eq "$("$CLI" path user alice)" "/home/alice" "cli path user"
 assert_eq "$("$CLI" path docroot alice example.com --primary)" "/home/alice/public_html" "cli primary docroot"
 assert_eq "$("$CLI" path docroot alice blog.example.com)" "/home/alice/blog.example.com" "cli addon docroot"
+assert_eq "$("$CLI" path owner alice)" "alice:alice" "cli owner user:user"
+assert_eq "$("$CLI" path perms home)" "711" "cli home mode"
+assert_eq "$("$CLI" path perms secret)" "640" "cli secret mode"
 assert_eq "$("$CLI" path db alice wp)" "alice_wp" "cli db name"
 assert_eq "$("$CLI" quota children 1G)" "3" "cli children"
 assert_ok "cli validate user" "$CLI" validate user alice

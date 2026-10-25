@@ -1,8 +1,10 @@
 [{{USER}}]
+; PHP runs as the site Unix user. Website files stay USER:USER.
 user = {{USER}}
 group = {{USER}}
 listen = {{FPM_SOCKET}}
 listen.owner = {{USER}}
+; WEB_USER is the Nginx daemon (www-data or nginx), not the file owner.
 listen.group = {{WEB_USER}}
 listen.mode = 0660
 

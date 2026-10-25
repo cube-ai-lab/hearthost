@@ -24,8 +24,9 @@ Interim Ubuntu releases (for example 25.04) and other distros are rejected.
 Debian, Rocky, and RHEL are not claimed as supported even when they look similar.
 
 On Ubuntu, Phase 1 uses UFW and unattended-upgrades. On AlmaLinux it uses
-firewalld and dnf-automatic. Nginx runs as `www-data` on Ubuntu and `nginx`
-on AlmaLinux.
+firewalld and dnf-automatic. Site files are always `{user}:{user}` (cPanel
+style). Nginx runs as `www-data` or `nginx` only to serve static files and
+connect to that user’s PHP-FPM socket.
 
 ## Status
 

@@ -19,6 +19,8 @@ export HEARTHOST_ROOT
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/os.sh"
 # shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/perms.sh"
+# shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/doctor.sh"
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/hardening.sh"
@@ -38,6 +40,8 @@ Commands:
                             Prompts for phpMyAdmin hostname if unset
   path user HOME            Print /home/{user}
   path docroot USER DOMAIN [--primary]
+  path owner USER           Print user:user ownership
+  path perms home|webroot|file|secret|logs|tmp
   path db USER NAME         Print prefixed database name
   quota children MEMORY     PHP-FPM pm.max_children for a RAM cap
   quota bytes SIZE          Parse 256M / 1G to bytes
@@ -86,8 +90,25 @@ hh_cmd_path() {
       hh_valid_username "$2" || hh_die "invalid username: $2"
       hh_fpm_socket "$1" "$2"
       ;;
+    owner)
+      [[ -n "${1:-}" ]] || hh_die "usage: hearthost path owner USER"
+      hh_valid_username "$1" || hh_die "invalid username: $1"
+      hh_perm_owner "$1"
+      ;;
+    perms)
+      case "${1:-}" in
+        home) hh_perm_home ;;
+        webroot|docroot) hh_perm_webroot ;;
+        dir) hh_perm_dir ;;
+        file) hh_perm_file ;;
+        secret) hh_perm_secret ;;
+        logs) hh_perm_logs ;;
+        tmp) hh_perm_tmp ;;
+        *) hh_die "usage: hearthost path perms home|webroot|file|secret|logs|tmp" ;;
+      esac
+      ;;
     *)
-      hh_die "usage: hearthost path user|docroot|db|socket ..."
+      hh_die "usage: hearthost path user|docroot|owner|perms|db|socket ..."
       ;;
   esac
 }

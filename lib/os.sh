@@ -82,6 +82,8 @@ hh_os_supported_list() {
   printf 'Ubuntu LTS 22.04+ (22.04, 24.04, 26.04, …) or AlmaLinux 9.x / 10.x\n'
 }
 
+# Nginx worker account. Used only as listen.group on the PHP-FPM socket.
+# Tenant files are never owned by this user — see lib/perms.sh (USER:USER).
 hh_os_web_user() {
   case "$(hh_os_family)" in
     rhel) printf 'nginx\n' ;;

@@ -19,6 +19,26 @@ of this repository can sit anywhere; the CLI locates itself relative to
 | `/home/{user}/tmp` | PHP upload and session dir |
 | `hearthost-{user}.slice` | cgroup v2 LVE: MemoryMax=1G, CPUQuota=100% |
 
+## File ownership (cPanel-style)
+
+Website files are **`{user}:{user}`**. Nginx (`www-data` on Ubuntu, `nginx` on
+AlmaLinux) does not own them. PHP-FPM runs as the site Unix user, so WordPress
+can write `wp-content` without world-writable directories.
+
+| Path | Owner | Mode | Why |
+| --- | --- | --- | --- |
+| `/home/{user}` | user:user | 711 | Others can traverse to the docroot, not list the home |
+| `/home/{user}/public_html` | user:user | 755 | Nginx reads static files |
+| `/home/{user}/{domain}` | user:user | 755 | Same for addon domains and subdomains |
+| files (css, php, uploads) | user:user | 644 | Owner writes; Nginx reads as “other” |
+| `wp-config.php` and secrets | user:user | 640 | PHP-FPM as the user can read; neighbors cannot |
+| `/home/{user}/logs` | user:user | 750 | Not web-served |
+| `/home/{user}/tmp` | user:user | 700 | PHP sessions and uploads |
+| FPM socket | user:www-data (or nginx) | 660 | Only place the web daemon appears |
+
+Tenants are never added to the `www-data` / `nginx` group. That group exists so
+Nginx can connect to the per-user PHP-FPM socket.
+
 ## Request path
 
 Client → host firewall (UFW on Ubuntu, firewalld on AlmaLinux; 22, 80, 443,
@@ -49,11 +69,6 @@ The hostname is not inferred from the server PTR. Set it with
 `--phpmyadmin-host`, `HEARTHOST_PHPMYADMIN_HOST`, an existing
 `/etc/hearthost/hearthost.conf`, or an interactive prompt during `hearthost init`.
 
-## Phases
-
-0. Repo, schema, doctor, unit tests
-1. Hardening: firewall, SSH groups, sysctl, fail2ban — `hearthost init hardening`
-
 ## Distro notes
 
 | | Ubuntu LTS | AlmaLinux 9/10 |
@@ -61,10 +76,15 @@ The hostname is not inferred from the server PTR. Set it with
 | Packages | apt | dnf + EPEL |
 | Firewall | UFW | firewalld |
 | Auto-updates | unattended-upgrades | dnf-automatic |
-| Nginx user | www-data | nginx |
+| Nginx daemon (not file owner) | www-data | nginx |
 | SSH unit | `ssh.service` | `sshd.service` |
 | PHP later | ondrej/php | Remi (planned) |
 | MAC | AppArmor | SELinux stays enforcing |
+
+## Phases
+
+0. Repo, schema, doctor, unit tests
+1. Hardening: firewall, SSH groups, sysctl, fail2ban — `hearthost init hardening`
 2. Nginx + TLS templates
 3. MariaDB + phpMyAdmin
 4. Multi-PHP FPM

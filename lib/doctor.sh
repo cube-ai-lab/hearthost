@@ -185,6 +185,21 @@ hh_doctor_run() {
     warn=$((warn + 1))
   fi
 
+  if systemctl is-active --quiet nginx 2>/dev/null; then
+    if nginx -t >/dev/null 2>&1; then
+      hh_doctor_print ok "nginx active (config valid)"
+    else
+      hh_doctor_print fail "nginx active but nginx -t failed"
+      fail=$((fail + 1))
+    fi
+  elif command -v nginx >/dev/null 2>&1; then
+    hh_doctor_print warn "nginx installed but not running (Phase 2)"
+    warn=$((warn + 1))
+  else
+    hh_doctor_print warn "nginx not installed (Phase 2)"
+    warn=$((warn + 1))
+  fi
+
   local kptr
   kptr="$(sysctl -n kernel.kptr_restrict 2>/dev/null || printf '0')"
   if [[ "$kptr" == "2" ]]; then

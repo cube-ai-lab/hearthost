@@ -24,6 +24,8 @@ export HEARTHOST_ROOT
 . "$HEARTHOST_ROOT/lib/doctor.sh"
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/hardening.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/nginx.sh"
 
 hh_usage() {
   cat <<EOF
@@ -38,6 +40,7 @@ Commands:
   init hardening [--phpmyadmin-host FQDN]
                             Phase 1: firewall, SSH groups, sysctl, fail2ban
                             Prompts for phpMyAdmin hostname if unset
+  init nginx                Phase 2: Nginx, TLS snippets, WP/Laravel vhosts
   path user HOME            Print /home/{user}
   path docroot USER DOMAIN [--primary]
   path owner USER           Print user:user ownership
@@ -164,7 +167,7 @@ hh_cmd_init() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --phpmyadmin-host)
-        [[ -n "${2:-}" ]] || hh_die "usage: hearthost init hardening [--phpmyadmin-host FQDN]"
+        [[ -n "${2:-}" ]] || hh_die "usage: hearthost init hardening|nginx [--phpmyadmin-host FQDN]"
         pma="$2"
         shift
         ;;
@@ -174,16 +177,28 @@ hh_cmd_init() {
       hardening|phase1)
         target=hardening
         ;;
+      nginx|phase2)
+        target=nginx
+        ;;
       *)
-        hh_die "usage: hearthost init hardening [--phpmyadmin-host FQDN]"
+        hh_die "usage: hearthost init hardening|nginx [--phpmyadmin-host FQDN]"
         ;;
     esac
     shift
   done
-  [[ "$target" == "hardening" ]] || hh_die "usage: hearthost init hardening [--phpmyadmin-host FQDN]"
-  HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
-  export HEARTHOST_PHPMYADMIN_HOST_FLAG
-  hh_harden_apply
+  case "$target" in
+    hardening)
+      HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
+      export HEARTHOST_PHPMYADMIN_HOST_FLAG
+      hh_harden_apply
+      ;;
+    nginx)
+      hh_nginx_apply
+      ;;
+    *)
+      hh_die "usage: hearthost init hardening|nginx [--phpmyadmin-host FQDN]"
+      ;;
+  esac
 }
 
 main() {

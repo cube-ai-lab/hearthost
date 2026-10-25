@@ -85,7 +85,7 @@ The hostname is not inferred from the server PTR. Set it with
 
 0. Repo, schema, doctor, unit tests
 1. Hardening: firewall, SSH groups, sysctl, fail2ban — `hearthost init hardening`
-2. Nginx + TLS templates
+2. Nginx + TLS templates — `hearthost init nginx`
 3. MariaDB + phpMyAdmin
 4. Multi-PHP FPM
 5. `user` / `site` CLI, SFTP, vsftpd

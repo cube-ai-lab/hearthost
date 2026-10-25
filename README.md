@@ -30,13 +30,14 @@ connect to that user’s PHP-FPM socket.
 
 ## Status
 
-Phase 1 is available as `hearthost init hardening`: firewall (22/80/443), SSH
-group `hearthost-ssh`, sysctl hardening, fail2ban (sshd), automatic security
-updates. Nginx, PHP, and MariaDB are not installed yet.
+Phase 2 is available as `hearthost init nginx`: Nginx, TLS 1.2+ snippets, a
+default server that answers unknown hosts with 404, WordPress/Laravel vhost
+templates. PHP and MariaDB are not installed yet.
 
 ```bash
 ./bin/hearthost os
 ./bin/hearthost init hardening --phpmyadmin-host pma.example.com
+./bin/hearthost init nginx
 ./tests/run.sh
 ```
 

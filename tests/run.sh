@@ -59,6 +59,8 @@ assert_fail() {
 . "$ROOT/lib/perms.sh"
 # shellcheck source=/dev/null
 . "$ROOT/lib/hardening.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/nginx.sh"
 
 hh_config_load
 
@@ -178,6 +180,25 @@ count="$(grep -c 'hearthost: AllowUsers' "$sshd_fix" || true)"
 assert_eq "$count" "1" "commenting AllowUsers is idempotent"
 rm -f "$sshd_fix"
 
+printf '== unit: nginx ==\n'
+ngin="$(mktemp)"
+ngout="$(mktemp)"
+printf 'root {{DOCROOT}};\nserver_name {{DOMAIN}};\n' >"$ngin"
+hh_nginx_subst "$ngin" "$ngout" "DOCROOT=/home/alice/public_html" "DOMAIN=example.com"
+assert_eq "$(tr '\n' ' ' <"$ngout" | sed 's/ *$//')" "root /home/alice/public_html; server_name example.com;" "vhost token subst"
+assert_ok "wordpress denies PHP in uploads" grep -q uploads "$ROOT/templates/nginx/wordpress.conf"
+assert_ok "wordpress denies wp-config" grep -q 'wp-config' "$ROOT/templates/nginx/wordpress.conf"
+assert_ok "wordpress denies xmlrpc" grep -q 'xmlrpc.php' "$ROOT/templates/nginx/wordpress.conf"
+assert_ok "tls min 1.2" grep -q 'TLSv1.2' "$ROOT/templates/nginx/nginx.conf"
+assert_ok "acme challenge path" grep -q 'acme-challenge' "$ROOT/templates/nginx/acme.conf"
+load_os_fixture ubuntu-24.04
+assert_eq "$(hh_nginx_sites_available)" "/etc/nginx/sites-available" "ubuntu sites-available"
+load_os_fixture almalinux-9
+assert_eq "$(hh_nginx_sites_available)" "/etc/nginx/conf.d" "alma uses conf.d"
+unset HEARTHOST_OS_RELEASE
+hh_os_load
+rm -f "$ngin" "$ngout"
+
 printf '== unit: config ==\n'
 cfg="$(mktemp)"
 printf 'phpmyadmin_host=\n' >"$cfg"
@@ -202,7 +223,7 @@ hh_config_load
 
 printf '== unit: cli ==\n'
 CLI="$ROOT/bin/hearthost"
-assert_eq "$("$CLI" version)" "0.3.1" "cli version"
+assert_eq "$("$CLI" version)" "0.4.0" "cli version"
 assert_eq "$("$CLI" path user alice)" "/home/alice" "cli path user"
 assert_eq "$("$CLI" path docroot alice example.com --primary)" "/home/alice/public_html" "cli primary docroot"
 assert_eq "$("$CLI" path docroot alice blog.example.com)" "/home/alice/blog.example.com" "cli addon docroot"

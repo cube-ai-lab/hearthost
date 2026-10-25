@@ -1,0 +1,22 @@
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 5
+backend = systemd
+
+[sshd]
+enabled = true
+
+[vsftpd]
+enabled = false
+port = ftp,ftp-data,ftps,ftps-data
+
+[nginx-http-auth]
+enabled = false
+
+[phpmyadmin-syslog]
+enabled = false
+port = https
+filter = phpmyadmin-syslog
+logpath = /var/log/nginx/*access.log
+maxretry = 3

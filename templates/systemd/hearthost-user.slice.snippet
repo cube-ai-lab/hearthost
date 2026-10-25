@@ -1,0 +1,10 @@
+[Unit]
+Description=Hearthost LVE slice for {{USER}}
+Before=slices.target
+
+[Slice]
+CPUQuota={{CPU_QUOTA}}
+MemoryMax={{MEMORY_MAX}}
+MemorySwapMax=256M
+TasksMax={{TASKS_MAX}}
+ManagedOOMMemory=kill

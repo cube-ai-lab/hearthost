@@ -1,0 +1,33 @@
+# Included from a per-domain server{} block.
+# FastCGI socket is substituted by the CLI.
+# Do not execute PHP from upload directories.
+
+index index.php index.html;
+
+location / {
+    try_files $uri $uri/ /index.php?$args;
+}
+
+location ~* /(?:uploads|files)/.*\.ph(?:p[0-9]?|t|tml)$ {
+    deny all;
+}
+
+location ~* /wp-config\.php {
+    deny all;
+}
+
+location = /xmlrpc.php {
+    # Toggle via site.yaml; default deny reduces brute-force surface.
+    deny all;
+}
+
+location ~ \.php$ {
+    include snippets/fastcgi-php.conf;
+    fastcgi_pass unix:{{FPM_SOCKET}};
+}
+
+location ~* \.(?:css|js|jpg|jpeg|gif|png|webp|svg|ico|woff2?)$ {
+    expires 7d;
+    access_log off;
+    try_files $uri =404;
+}

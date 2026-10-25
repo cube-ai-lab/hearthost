@@ -1,0 +1,13 @@
+# /etc/hearthost/sites.d/{domain}.yaml
+domain: example.com
+user: alice
+# primary sites use /home/{user}/public_html
+# addon domains and subdomains use /home/{user}/{domain}
+primary: true
+php: "8.3"
+app: wordpress   # wordpress | laravel | php
+ssl: true
+# Optional FastCGI microcache for anonymous GET (seconds). 0 = off.
+microcache: 0
+aliases: []
+created: ""

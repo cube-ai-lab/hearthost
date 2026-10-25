@@ -1,0 +1,24 @@
+[{{USER}}]
+user = {{USER}}
+group = {{USER}}
+listen = {{FPM_SOCKET}}
+listen.owner = {{USER}}
+listen.group = www-data
+listen.mode = 0660
+
+pm = ondemand
+pm.max_children = {{MAX_CHILDREN}}
+pm.process_idle_timeout = 10s
+pm.max_requests = 500
+
+chdir = {{HOME}}
+catch_workers_output = yes
+security.limit_extensions = .php
+
+php_admin_value[open_basedir] = {{HOME}}:/usr/share/php
+php_admin_value[upload_tmp_dir] = {{HOME}}/tmp
+php_admin_value[session.save_path] = {{HOME}}/tmp/sessions
+php_admin_value[memory_limit] = {{PHP_MEMORY_LIMIT}}
+php_admin_flag[allow_url_include] = off
+php_admin_flag[expose_php] = off
+php_admin_value[disable_functions] = exec,passthru,shell_exec,system,popen,show_source,pcntl_exec,pcntl_fork

@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+# Hearthost CLI — multi-tenant WordPress/Laravel hosting without a panel.
+set -euo pipefail
+
+HEARTHOST_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HEARTHOST_ROOT="$(cd "$HEARTHOST_BIN/.." && pwd)"
+export HEARTHOST_ROOT
+
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/common.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/config.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/validate.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/paths.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/quota.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/doctor.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/hardening.sh"
+
+hh_usage() {
+  cat <<EOF
+hearthost $(hh_version) — CLI-first multi-tenant hosting
+
+Usage:
+  hearthost <command> [arguments]
+
+Commands:
+  doctor [--stack]          Preflight (default) or post-install stack check
+  init hardening [--phpmyadmin-host FQDN]
+                            Phase 1: UFW, SSH groups, sysctl, fail2ban
+                            Prompts for phpMyAdmin hostname if unset
+  path user HOME            Print /home/{user}
+  path docroot USER DOMAIN [--primary]
+  path db USER NAME         Print prefixed database name
+  quota children MEMORY     PHP-FPM pm.max_children for a RAM cap
+  quota bytes SIZE          Parse 256M / 1G to bytes
+  validate user|domain|php  Exit 0 if the value is allowed
+  version                   Print version
+  help                      This message
+
+Not yet implemented (later phases):
+  user add/del, site add/del, php set, db create, ssl issue, wp install
+EOF
+}
+
+hh_cmd_path() {
+  hh_config_load
+  local kind="${1:-}"
+  shift || true
+  case "$kind" in
+    user|home)
+      [[ -n "${1:-}" ]] || hh_die "usage: hearthost path user USER"
+      hh_valid_username "$1" || hh_die "invalid username: $1"
+      hh_user_home "$1"
+      ;;
+    docroot)
+      local user="${1:-}" domain="${2:-}" primary=no
+      shift 2 2>/dev/null || true
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --primary) primary=yes ;;
+          *) hh_die "unknown flag $1" ;;
+        esac
+        shift
+      done
+      [[ -n "$user" && -n "$domain" ]] || hh_die "usage: hearthost path docroot USER DOMAIN [--primary]"
+      hh_valid_username "$user" || hh_die "invalid username: $user"
+      hh_valid_domain "$domain" || hh_die "invalid domain: $domain"
+      hh_site_docroot "$user" "$domain" "$primary"
+      ;;
+    db)
+      [[ -n "${1:-}" && -n "${2:-}" ]] || hh_die "usage: hearthost path db USER NAME"
+      hh_valid_username "$1" || hh_die "invalid username: $1"
+      hh_db_name "$1" "$2"
+      ;;
+    socket)
+      [[ -n "${1:-}" && -n "${2:-}" ]] || hh_die "usage: hearthost path socket PHP USER"
+      hh_valid_php "$1" || hh_die "invalid PHP version: $1"
+      hh_valid_username "$2" || hh_die "invalid username: $2"
+      hh_fpm_socket "$1" "$2"
+      ;;
+    *)
+      hh_die "usage: hearthost path user|docroot|db|socket ..."
+      ;;
+  esac
+}
+
+hh_cmd_quota() {
+  hh_config_load
+  local kind="${1:-}"
+  shift || true
+  case "$kind" in
+    children)
+      [[ -n "${1:-}" ]] || hh_die "usage: hearthost quota children MEMORY"
+      hh_php_max_children "$1" "${2:-}"
+      ;;
+    bytes)
+      [[ -n "${1:-}" ]] || hh_die "usage: hearthost quota bytes SIZE"
+      hh_parse_bytes "$1"
+      ;;
+    cpu)
+      [[ -n "${1:-}" ]] || hh_die "usage: hearthost quota cpu 100%|1"
+      hh_parse_cpu_quota "$1"
+      ;;
+    *)
+      hh_die "usage: hearthost quota children|bytes|cpu ..."
+      ;;
+  esac
+}
+
+hh_cmd_validate() {
+  hh_config_load
+  local kind="${1:-}" value="${2:-}"
+  [[ -n "$kind" && -n "$value" ]] || hh_die "usage: hearthost validate user|domain|php VALUE"
+  case "$kind" in
+    user) hh_valid_username "$value" ;;
+    domain) hh_valid_domain "$value" ;;
+    php) hh_php_allowed "$value" ;;
+    app) hh_valid_app "$value" ;;
+    *) hh_die "unknown validate kind: $kind" ;;
+  esac
+}
+
+hh_cmd_doctor() {
+  local mode=preflight
+  if [[ "${1:-}" == "--stack" ]]; then
+    mode=stack
+  elif [[ -n "${1:-}" ]]; then
+    hh_die "usage: hearthost doctor [--stack]"
+  fi
+  hh_doctor_run "$mode"
+}
+
+hh_cmd_init() {
+  local target="" pma=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --phpmyadmin-host)
+        [[ -n "${2:-}" ]] || hh_die "usage: hearthost init hardening [--phpmyadmin-host FQDN]"
+        pma="$2"
+        shift
+        ;;
+      --phpmyadmin-host=*)
+        pma="${1#*=}"
+        ;;
+      hardening|phase1)
+        target=hardening
+        ;;
+      *)
+        hh_die "usage: hearthost init hardening [--phpmyadmin-host FQDN]"
+        ;;
+    esac
+    shift
+  done
+  [[ "$target" == "hardening" ]] || hh_die "usage: hearthost init hardening [--phpmyadmin-host FQDN]"
+  HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
+  export HEARTHOST_PHPMYADMIN_HOST_FLAG
+  hh_harden_apply
+}
+
+main() {
+  local cmd="${1:-help}"
+  shift || true
+  case "$cmd" in
+    doctor) hh_cmd_doctor "$@" ;;
+    path) hh_cmd_path "$@" ;;
+    quota) hh_cmd_quota "$@" ;;
+    validate) hh_cmd_validate "$@" ;;
+    version|--version) hh_version ;;
+    help|-h|--help) hh_usage ;;
+    init) hh_cmd_init "$@" ;;
+    user|site|php|db|ssl|wp)
+      hh_die "'$cmd' is scheduled for a later phase. See docs/ARCHITECTURE.md."
+      ;;
+    *)
+      hh_usage >&2
+      hh_die "unknown command: $cmd"
+      ;;
+  esac
+}
+
+main "$@"

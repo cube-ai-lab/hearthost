@@ -1,0 +1,63 @@
+# Hearthost
+
+CLI-first multi-tenant hosting for Ubuntu. No control panel.
+
+Each customer is a Unix user. The primary site is `/home/{user}/public_html`.
+Every extra domain or subdomain is `/home/{user}/{domain}`. PHP version is
+chosen per site. RAM and CPU are capped per user with systemd cgroup v2
+(CloudLinux LVE-style): **1 GB RAM and 1 CPU by default**, overridable as root.
+
+WordPress and Laravel are first-class. MariaDB, phpMyAdmin, SFTP, and FTP
+are included. Nginx terminates TLS.
+
+This repository is generic installer source. Do not commit a machine IP,
+hostname, or hardware inventory.
+
+## Status
+
+Phase 1 is available as `hearthost init hardening`: UFW (22/80/443), SSH
+group `hearthost-ssh`, sysctl hardening, fail2ban (sshd), unattended
+upgrades. Nginx, PHP, and MariaDB are not installed yet.
+
+```bash
+./bin/hearthost init hardening --phpmyadmin-host pma.example.com
+./tests/run.sh
+```
+
+On an interactive SSH session, omit `--phpmyadmin-host` and the command
+will ask for a dedicated FQDN if it is not already in `/etc/hearthost/hearthost.conf`.
+
+## Requirements
+
+- Ubuntu 24.04
+- Root shell
+- Enough RAM for `1G × tenants + ~1.5G` system overhead
+
+## Quick start
+
+```bash
+git clone https://github.com/cube-ai-lab/hearthost.git
+cd hearthost
+./tests/run.sh
+./bin/hearthost doctor
+./bin/hearthost path docroot alice example.com --primary
+# /home/alice/public_html
+./bin/hearthost path docroot alice blog.example.com
+# /home/alice/blog.example.com
+```
+
+## Defaults
+
+| Item | Value |
+| --- | --- |
+| PHP | 8.2, 8.3, 8.4, 8.5 (default 8.3) |
+| Quota | 1G RAM, 100% CPU (one core), overridable per user |
+| Uploads | SFTP + classic FTP on port 21 |
+| phpMyAdmin | dedicated hostname + HTTPS + fail2ban (prompted at install) |
+
+Classic FTP sends passwords in the clear. FTPS is offered on the same daemon.
+Prefer SFTP.
+
+## Layout
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

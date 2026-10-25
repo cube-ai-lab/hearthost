@@ -1,0 +1,13 @@
+# /etc/hearthost/users.d/{username}.yaml
+username: alice
+shell: /bin/bash
+ssh: true
+sftp: true
+ftp: true
+memory: 1G
+cpu: 100%
+tasks: 120
+# Created by `hearthost user add`. Do not hand-edit uid unless recovering.
+uid: 0
+comment: ""
+created: ""

@@ -1,0 +1,48 @@
+# Hearthost runtime configuration
+# Copy to /etc/hearthost/hearthost.conf (or keep a local copy for tests).
+# KEY=value. Quotes optional. Lines starting with # are ignored.
+
+# lve  = dedicated PHP-FPM per user inside a systemd slice (default, 1G/1CPU)
+# lite = shared PHP-FPM per PHP version (escape hatch for tiny VPS)
+profile=lve
+
+# Per-user defaults (CloudLinux-style). Root can override per user.
+default_memory=1G
+default_cpu=100%
+default_tasks=120
+default_php=8.3
+php_versions=8.2,8.3,8.4,8.5
+
+# PHP process memory used to derive pm.max_children from the user RAM cap.
+php_memory_limit=256M
+
+# Filesystem layout
+home_root=/home
+primary_docroot=public_html
+
+# Network
+listen_http=80
+listen_https=443
+ftp_enable=yes
+ftp_port=21
+ftp_pasv_min=40000
+ftp_pasv_max=40099
+sftp_enable=yes
+sftp_group=hearthost-sftp
+ssh_group=hearthost-ssh
+
+# phpMyAdmin is never mounted on customer sites.
+# Leave empty: `hearthost init` prompts on a TTY, or pass --phpmyadmin-host.
+phpmyadmin_enable=yes
+phpmyadmin_host=
+
+# MariaDB stays on loopback. Database names for user "alice" are alice_*.
+mysql_bind=127.0.0.1
+mysql_prefix_separator=_
+
+# TLS
+letsencrypt_email=
+tls_min=TLSv1.2
+
+# Admin
+log_level=info

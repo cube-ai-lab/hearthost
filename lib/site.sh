@@ -108,6 +108,17 @@ hh_site_add() {
   hh_valid_username "$user" || hh_die "invalid username: $user"
   getent passwd "$user" >/dev/null || hh_die "user $user does not exist (run hearthost user add $user first)"
   hh_valid_domain "$domain" || hh_die "invalid domain: $domain"
+
+  # Check if domain already exists with a different user (catch truncation bugs)
+  local existing_state
+  existing_state="$(hh_site_state "$domain")"
+  if [[ -f "$existing_state" ]]; then
+    local existing_user
+    existing_user="$(sed -n 's/^user:[[:space:]]*//p' "$existing_state" | head -1)"
+    if [[ -n "$existing_user" && "$existing_user" != "$user" ]]; then
+      hh_die "domain $domain already exists for user $existing_user (not $user). Delete it first: hearthost site del $domain"
+    fi
+  fi
   hh_php_allowed "$php" || hh_die "PHP $php is not in php_versions"
   app="$(hh_site_app_snippet "$app")"
 

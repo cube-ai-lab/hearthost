@@ -61,6 +61,12 @@ assert_fail() {
 . "$ROOT/lib/hardening.sh"
 # shellcheck source=/dev/null
 . "$ROOT/lib/nginx.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/ssl.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/mariadb.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/phpmyadmin.sh"
 
 hh_config_load
 
@@ -152,6 +158,30 @@ assert_eq "$(hh_user_ssl_dir alice)" "/home/alice/ssl" "user ssl dir"
 assert_eq "$(hh_site_ssl_dir alice example.com)" "/home/alice/ssl/example.com" "domain ssl dir"
 assert_eq "$(hh_site_ssl_cert alice example.com)" "/home/alice/ssl/example.com/fullchain.pem" "fullchain path"
 assert_eq "$(hh_site_ssl_key alice example.com)" "/home/alice/ssl/example.com/privkey.pem" "privkey path"
+assert_eq "$(hh_system_ssl_dir)" "/etc/hearthost/ssl" "system ssl dir"
+assert_eq "$(hh_system_ssl_cert pma.example.com)" "/etc/hearthost/ssl/pma.example.com/fullchain.pem" "system fullchain"
+assert_eq "$(hh_certbot_live_dir example.com)" "/etc/letsencrypt/live/example.com" "certbot lineage"
+assert_eq "$(hh_db_grant_pattern alice)" 'alice\_%' "grant pattern escapes underscore"
+grant_sql="$(hh_db_tenant_grant_sql alice)"
+if [[ "$grant_sql" == *unix_socket* ]]; then
+  printf '  ok   tenant grant uses unix_socket\n'
+  PASS=$((PASS + 1))
+else
+  printf '  FAIL tenant grant uses unix_socket\n'
+  FAIL=$((FAIL + 1))
+fi
+if [[ "$grant_sql" == *'alice\_%'* ]]; then
+  printf '  ok   tenant grant uses escaped LIKE db\n'
+  PASS=$((PASS + 1))
+else
+  printf '  FAIL tenant grant uses escaped LIKE db\n%s\n' "$grant_sql"
+  FAIL=$((FAIL + 1))
+fi
+assert_ok "bind 127.0.0.1 is allowed" hh_mariadb_bind_ok
+assert_ok "email valid" hh_valid_email ops@example.com
+assert_fail "email invalid" hh_valid_email not-an-email
+assert_eq "$(hh_pma_user)" "hearthost-pma" "pma system user"
+assert_eq "$(hh_pma_socket)" "/run/php/php-fpm-hearthost-pma.sock" "pma fpm socket"
 
 printf '== unit: quota ==\n'
 assert_eq "$(hh_parse_bytes 1G)" "1000000000" "1G SI"
@@ -209,6 +239,41 @@ hh_nginx_subst "$ROOT/templates/nginx/vhost.conf" "$ngout" \
 assert_ok "vhost cert is per-user" grep -q '/home/alice/ssl/example.com/fullchain.pem' "$ngout"
 assert_ok "vhost key is per-user" grep -q '/home/alice/ssl/example.com/privkey.pem' "$ngout"
 assert_ok "vhost ACME root is per-user" grep -q '"/home/alice/ssl"' "$ngout"
+assert_ok "phpmyadmin vhost denies /setup" grep -q 'location ^~ /setup' "$ROOT/templates/nginx/phpmyadmin.conf"
+assert_ok "phpmyadmin vhost uses system ssl root" grep -q '{{SSL_ROOT}}' "$ROOT/templates/nginx/phpmyadmin.conf"
+assert_ok "deploy hook copies fullchain" grep -q 'fullchain.pem' "$ROOT/templates/ssl/deploy-hook.sh"
+le_cfg="$(mktemp)"
+printf 'letsencrypt_email=\n' >"$le_cfg"
+HEARTHOST_CONF_FILE="$le_cfg"
+hh_config_load
+account="$(hh_ssl_certbot_account_args | tr '\n' ' ')"
+if [[ "$account" == *register-unsafely-without-email* ]]; then
+  printf '  ok   certbot without email is unsafe-register\n'
+  PASS=$((PASS + 1))
+else
+  printf '  FAIL certbot without email is unsafe-register\n'
+  FAIL=$((FAIL + 1))
+fi
+printf 'letsencrypt_email=ops@example.com\n' >"$le_cfg"
+hh_config_load
+account="$(hh_ssl_certbot_account_args | tr '\n' ' ')"
+if [[ "$account" == *ops@example.com* ]]; then
+  printf '  ok   certbot with email passes --email\n'
+  PASS=$((PASS + 1))
+else
+  printf '  FAIL certbot with email passes --email\n'
+  FAIL=$((FAIL + 1))
+fi
+live="$(mktemp -d)"
+destssl="$(mktemp -d)"
+printf 'chain\n' >"$live/fullchain.pem"
+printf 'key\n' >"$live/privkey.pem"
+hh_ssl_copy_live "$live" "$destssl" root
+assert_eq "$(cat "$destssl/fullchain.pem")" "chain" "copy live fullchain"
+assert_eq "$(stat -c '%a' "$destssl/privkey.pem")" "600" "copied key is 600"
+rm -rf "$live" "$destssl" "$le_cfg"
+HEARTHOST_CONF_FILE="$ROOT/etc/hearthost.conf.example"
+hh_config_load
 load_os_fixture ubuntu-24.04
 assert_eq "$(hh_nginx_sites_available)" "/etc/nginx/sites-available" "ubuntu sites-available"
 load_os_fixture almalinux-9
@@ -241,13 +306,15 @@ hh_config_load
 
 printf '== unit: cli ==\n'
 CLI="$ROOT/bin/hearthost"
-assert_eq "$("$CLI" version)" "0.4.1" "cli version"
+assert_eq "$("$CLI" version)" "0.5.0" "cli version"
 assert_eq "$("$CLI" path user alice)" "/home/alice" "cli path user"
 assert_eq "$("$CLI" path docroot alice example.com --primary)" "/home/alice/public_html" "cli primary docroot"
 assert_eq "$("$CLI" path docroot alice blog.example.com)" "/home/alice/blog.example.com" "cli addon docroot"
 assert_eq "$("$CLI" path owner alice)" "alice:alice" "cli owner user:user"
 assert_eq "$("$CLI" path ssl alice)" "/home/alice/ssl" "cli ssl dir"
 assert_eq "$("$CLI" path ssl alice example.com)" "/home/alice/ssl/example.com" "cli domain ssl dir"
+assert_eq "$("$CLI" path ssl-system)" "/etc/hearthost/ssl" "cli system ssl dir"
+assert_eq "$("$CLI" path ssl-system pma.example.com)" "/etc/hearthost/ssl/pma.example.com" "cli pma ssl dir"
 assert_eq "$("$CLI" path perms ssl)" "711" "cli ssl mode"
 assert_eq "$("$CLI" path perms home)" "711" "cli home mode"
 assert_eq "$("$CLI" path perms secret)" "640" "cli secret mode"

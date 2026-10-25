@@ -37,6 +37,11 @@ hh_valid_php() {
   [[ "$v" =~ ^8\.(2|3|4|5)$ ]]
 }
 
+hh_valid_email() {
+  local e="${1:-}"
+  [[ "$e" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]
+}
+
 hh_valid_app() {
   case "${1:-}" in
     wordpress|laravel|php) return 0 ;;

@@ -26,6 +26,12 @@ export HEARTHOST_ROOT
 . "$HEARTHOST_ROOT/lib/hardening.sh"
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/nginx.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/ssl.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/mariadb.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/phpmyadmin.sh"
 
 hh_usage() {
   cat <<EOF
@@ -41,11 +47,18 @@ Commands:
                             Phase 1: firewall, SSH groups, sysctl, fail2ban
                             Prompts for phpMyAdmin hostname if unset
   init nginx                Phase 2: Nginx, TLS snippets, WP/Laravel vhosts
+  init mariadb [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]
+                            Phase 3: MariaDB, phpMyAdmin, certbot
+  init ssl                  Install certbot, HTTP-01 webroot, renew hook
+  ssl issue --user USER DOMAIN
+                            Issue Let's Encrypt cert into /home/{user}/ssl/{domain}/
+  ssl issue --system DOMAIN Issue cert into /etc/hearthost/ssl/{domain}/
   path user HOME            Print /home/{user}
   path docroot USER DOMAIN [--primary]
   path owner USER           Print user:user ownership
   path perms home|webroot|file|secret|logs|tmp|ssl
   path ssl USER [DOMAIN]    Print /home/{user}/ssl[/{domain}]
+  path ssl-system [DOMAIN]  Print /etc/hearthost/ssl[/{domain}]
   path db USER NAME         Print prefixed database name
   quota children MEMORY     PHP-FPM pm.max_children for a RAM cap
   quota bytes SIZE          Parse 256M / 1G to bytes
@@ -54,7 +67,7 @@ Commands:
   help                      This message
 
 Not yet implemented (later phases):
-  user add/del, site add/del, php set, db create, ssl issue, wp install
+  user add/del, site add/del, php set, db create, wp install
 EOF
 }
 
@@ -107,6 +120,14 @@ hh_cmd_path() {
         hh_site_ssl_dir "$1" "$2"
       else
         hh_user_ssl_dir "$1"
+      fi
+      ;;
+    ssl-system)
+      if [[ -n "${1:-}" ]]; then
+        hh_valid_domain "$1" || hh_die "invalid domain: $1"
+        hh_system_ssl_site_dir "$1"
+      else
+        hh_system_ssl_dir
       fi
       ;;
     perms)
@@ -175,17 +196,79 @@ hh_cmd_doctor() {
   hh_doctor_run "$mode"
 }
 
+hh_cmd_ssl() {
+  hh_config_load
+  hh_os_load
+  local kind="${1:-}"
+  shift || true
+  case "$kind" in
+    install|apply)
+      hh_ssl_apply
+      ;;
+    issue)
+      local user="" domain="" system=no
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --user)
+            user="${2:-}"
+            shift
+            ;;
+          --user=*) user="${1#*=}" ;;
+          --system)
+            system=yes
+            if [[ -n "${2:-}" && "${2:-}" != --* ]]; then
+              domain="$2"
+              shift
+            fi
+            ;;
+          --system=*)
+            system=yes
+            domain="${1#*=}"
+            ;;
+          --staging) export HEARTHOST_SSL_STAGING=1 ;;
+          *)
+            if [[ -z "$domain" ]]; then
+              domain="$1"
+            else
+              hh_die "usage: hearthost ssl issue --user USER DOMAIN | --system DOMAIN"
+            fi
+            ;;
+        esac
+        shift
+      done
+      if [[ "$system" == yes ]]; then
+        [[ -n "$domain" ]] || hh_die "usage: hearthost ssl issue --system DOMAIN"
+        hh_ssl_issue_system "$domain"
+      else
+        [[ -n "$user" && -n "$domain" ]] || hh_die "usage: hearthost ssl issue --user USER DOMAIN"
+        hh_ssl_issue_user "$user" "$domain"
+      fi
+      ;;
+    *)
+      hh_die "usage: hearthost ssl install | issue --user USER DOMAIN | issue --system DOMAIN"
+      ;;
+  esac
+}
+
 hh_cmd_init() {
-  local target="" pma=""
+  local target="" pma="" email=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --phpmyadmin-host)
-        [[ -n "${2:-}" ]] || hh_die "usage: hearthost init hardening|nginx [--phpmyadmin-host FQDN]"
+        [[ -n "${2:-}" ]] || hh_die "missing --phpmyadmin-host value"
         pma="$2"
         shift
         ;;
       --phpmyadmin-host=*)
         pma="${1#*=}"
+        ;;
+      --letsencrypt-email)
+        [[ -n "${2:-}" ]] || hh_die "missing --letsencrypt-email value"
+        email="$2"
+        shift
+        ;;
+      --letsencrypt-email=*)
+        email="${1#*=}"
         ;;
       hardening|phase1)
         target=hardening
@@ -193,12 +276,23 @@ hh_cmd_init() {
       nginx|phase2)
         target=nginx
         ;;
+      mariadb|db|phase3)
+        target=mariadb
+        ;;
+      ssl|certbot)
+        target=ssl
+        ;;
       *)
-        hh_die "usage: hearthost init hardening|nginx [--phpmyadmin-host FQDN]"
+        hh_die "usage: hearthost init hardening|nginx|mariadb|ssl [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
         ;;
     esac
     shift
   done
+  if [[ -n "$email" ]]; then
+    hh_config_load
+    hh_valid_email "$email" || hh_die "invalid letsencrypt_email: $email"
+    hh_conf_set letsencrypt_email "$email"
+  fi
   case "$target" in
     hardening)
       HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
@@ -208,8 +302,16 @@ hh_cmd_init() {
     nginx)
       hh_nginx_apply
       ;;
+    ssl)
+      hh_ssl_apply
+      ;;
+    mariadb)
+      HEARTHOST_PHPMYADMIN_HOST_FLAG="$pma"
+      export HEARTHOST_PHPMYADMIN_HOST_FLAG
+      hh_db_stack_apply
+      ;;
     *)
-      hh_die "usage: hearthost init hardening|nginx [--phpmyadmin-host FQDN]"
+      hh_die "usage: hearthost init hardening|nginx|mariadb|ssl [--phpmyadmin-host FQDN] [--letsencrypt-email EMAIL]"
       ;;
   esac
 }
@@ -231,7 +333,8 @@ main() {
     version|--version) hh_version ;;
     help|-h|--help) hh_usage ;;
     init) hh_cmd_init "$@" ;;
-    user|site|php|db|ssl|wp)
+    ssl) hh_cmd_ssl "$@" ;;
+    user|site|php|db|wp)
       hh_die "'$cmd' is scheduled for a later phase. See docs/ARCHITECTURE.md."
       ;;
     *)

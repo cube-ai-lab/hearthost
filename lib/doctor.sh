@@ -243,6 +243,61 @@ hh_doctor_run() {
     fi
   done
 
+  if systemctl is-active --quiet mariadb 2>/dev/null || systemctl is-active --quiet mysqld 2>/dev/null; then
+    if mysqladmin --protocol=socket -uroot ping >/dev/null 2>&1; then
+      hh_doctor_print ok "MariaDB active (root unix_socket)"
+    else
+      hh_doctor_print warn "MariaDB active but root socket ping failed"
+      warn=$((warn + 1))
+    fi
+    if ss -lnt 2>/dev/null | grep -q '127.0.0.1:3306'; then
+      hh_doctor_print ok "MariaDB bound to 127.0.0.1:3306"
+    elif ss -lnt 2>/dev/null | grep -Eq '[:.]3306'; then
+      hh_doctor_print fail "MariaDB is listening on a non-loopback address"
+      fail=$((fail + 1))
+    else
+      hh_doctor_print warn "MariaDB has no TCP listener on 3306 (socket-only is ok)"
+      warn=$((warn + 1))
+    fi
+  elif [[ "$mode" == "stack" ]]; then
+    hh_doctor_print fail "MariaDB not running"
+    fail=$((fail + 1))
+  fi
+
+  if command -v certbot >/dev/null 2>&1; then
+    hh_doctor_print ok "certbot present (HTTP-01 webroot → tenant or system ssl dir)"
+    local le_email
+    le_email="$(hh_conf letsencrypt_email "")"
+    if [[ -z "$le_email" ]]; then
+      hh_doctor_print warn "letsencrypt_email is empty; pass --letsencrypt-email"
+      warn=$((warn + 1))
+    else
+      hh_doctor_print ok "Let's Encrypt account email is set"
+    fi
+  elif [[ "$mode" == "stack" ]]; then
+    hh_doctor_print fail "certbot missing"
+    fail=$((fail + 1))
+  else
+    hh_doctor_print info "certbot not installed yet (Phase 3)"
+  fi
+
+  if [[ -d /usr/share/phpmyadmin || -d /usr/share/phpMyAdmin ]]; then
+    hh_doctor_print ok "phpMyAdmin files present"
+    if [[ -n "$phpmyadmin_host" ]]; then
+      if [[ -f "$(hh_nginx_site_file phpmyadmin)" ]]; then
+        hh_doctor_print ok "phpMyAdmin vhost for $phpmyadmin_host"
+      else
+        hh_doctor_print warn "phpMyAdmin installed but vhost file missing"
+        warn=$((warn + 1))
+      fi
+    fi
+  elif [[ "$mode" == "stack" ]]; then
+    hh_doctor_print fail "phpMyAdmin files missing"
+    fail=$((fail + 1))
+  else
+    hh_doctor_print info "phpMyAdmin not installed yet (Phase 3)"
+  fi
+
   printf '\n%d failure(s), %d warning(s)\n' "$fail" "$warn"
   if (( fail > 0 )); then
     return 1

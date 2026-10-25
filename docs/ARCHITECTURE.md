@@ -72,6 +72,31 @@ phpMyAdmin listens on a dedicated hostname only, never on a customer vhost.
 The hostname is not inferred from the server PTR. Set it with
 `--phpmyadmin-host`, `HEARTHOST_PHPMYADMIN_HOST`, an existing
 `/etc/hearthost/hearthost.conf`, or an interactive prompt during `hearthost init`.
+Cookie auth against MariaDB on 127.0.0.1. PHP-FPM pool `hearthost-pma`.
+
+## Let's Encrypt
+
+HTTP-01 via certbot webroot. Certbot keeps the lineage under
+`/etc/letsencrypt`. A deploy hook copies `fullchain.pem` and `privkey.pem`
+into the published path and reloads Nginx.
+
+| Name | ACME webroot | Published cert |
+| --- | --- | --- |
+| Tenant `{user}` / `{domain}` | `/home/{user}/ssl` | `/home/{user}/ssl/{domain}/` |
+| phpMyAdmin / system | `/etc/hearthost/ssl` | `/etc/hearthost/ssl/{domain}/` |
+| Unknown-host catch-all | (none) | `/etc/hearthost/tls/default.*` (self-signed) |
+
+```bash
+hearthost init ssl
+hearthost init mariadb --phpmyadmin-host pma.example.com --letsencrypt-email ops@example.com
+hearthost ssl issue --user alice example.com
+hearthost ssl issue --system pma.example.com
+```
+
+DNS A/AAAA for the name must point at this server before issue succeeds.
+Until then Nginx uses a self-signed placeholder so `nginx -t` still passes.
+`certbot.timer` renews; `/etc/letsencrypt/renewal-hooks/deploy/hearthost.sh`
+copies into the mapped dest from `/etc/hearthost/ssl-map/{domain}`.
 
 ## Distro notes
 
@@ -90,7 +115,7 @@ The hostname is not inferred from the server PTR. Set it with
 0. Repo, schema, doctor, unit tests
 1. Hardening: firewall, SSH groups, sysctl, fail2ban — `hearthost init hardening`
 2. Nginx + TLS templates — `hearthost init nginx`
-3. MariaDB + phpMyAdmin
+3. MariaDB + phpMyAdmin + Let's Encrypt — `hearthost init mariadb`
 4. Multi-PHP FPM
 5. `user` / `site` CLI, SFTP, vsftpd
 6. systemd slices at 1G / 1 CPU

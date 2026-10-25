@@ -31,14 +31,16 @@ connect to that user’s PHP-FPM socket.
 
 ## Status
 
-Phase 2 is available as `hearthost init nginx`: Nginx, TLS 1.2+ snippets, a
-default server that answers unknown hosts with 404, WordPress/Laravel vhost
-templates. PHP and MariaDB are not installed yet.
+Phase 3 is available as `hearthost init mariadb`: MariaDB on 127.0.0.1,
+phpMyAdmin on a dedicated hostname, and Let's Encrypt (certbot HTTP-01).
+Tenant PHP versions (8.2–8.5) are still Phase 4; phpMyAdmin uses the distro
+PHP-FPM pool `hearthost-pma` only.
 
 ```bash
 ./bin/hearthost os
 ./bin/hearthost init hardening --phpmyadmin-host pma.example.com
 ./bin/hearthost init nginx
+./bin/hearthost init mariadb --phpmyadmin-host pma.example.com --letsencrypt-email ops@example.com
 ./tests/run.sh
 ```
 
@@ -70,7 +72,7 @@ cd hearthost
 | Quota | 1G RAM, 100% CPU (one core), overridable per user |
 | Uploads | SFTP + classic FTP on port 21 |
 | phpMyAdmin | dedicated hostname + HTTPS + fail2ban (prompted at install) |
-| TLS | `/home/{user}/ssl/{domain}/` (ACME under `/home/{user}/ssl`) |
+| TLS | Let's Encrypt HTTP-01 → `/home/{user}/ssl/{domain}/` |
 
 Classic FTP sends passwords in the clear. FTPS is offered on the same daemon.
 Prefer SFTP.

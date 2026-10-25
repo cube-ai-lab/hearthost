@@ -1,0 +1,8 @@
+[mysqld]
+bind-address = {{BIND}}
+skip-name-resolve = 1
+local_infile = 0
+max_connections = 80
+innodb_buffer_pool_size = 256M
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci

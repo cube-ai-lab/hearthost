@@ -40,8 +40,11 @@ phpmyadmin_host=
 mysql_bind=127.0.0.1
 mysql_prefix_separator=_
 
-# TLS
-# ACME account email only. Certificates are /home/{user}/ssl/{domain}/.
+# TLS / Let's Encrypt
+# Account email for certbot. Lineage is /etc/letsencrypt/live/{domain}/.
+# Published files: /home/{user}/ssl/{domain}/ (tenants) or
+# /etc/hearthost/ssl/{domain}/ (phpMyAdmin and other system names).
+# HTTP-01 webroot is /home/{user}/ssl or /etc/hearthost/ssl.
 letsencrypt_email=
 tls_min=TLSv1.2
 

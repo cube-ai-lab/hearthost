@@ -112,13 +112,13 @@ hh_pkg_install() {
     debian)
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -qq
-      apt-get install -y -qq "$@" >/dev/null
+      apt-get install -y -qq --no-install-recommends "$@" >/dev/null
       ;;
     rhel)
       if ! hh_pkg_installed epel-release; then
         dnf -y install epel-release >/dev/null
       fi
-      dnf -y install "$@" >/dev/null
+      dnf -y --setopt=install_weak_deps=False install "$@" >/dev/null
       ;;
     *)
       hh_die "cannot install packages on family $(hh_os_family)"

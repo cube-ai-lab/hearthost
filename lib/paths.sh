@@ -68,6 +68,51 @@ hh_site_ssl_key() {
   printf '%s/privkey.pem\n' "$(hh_site_ssl_dir "$1" "$2")"
 }
 
+# System (phpMyAdmin and other admin hostnames), not a tenant home.
+hh_system_ssl_dir() {
+  printf '/etc/hearthost/ssl\n'
+}
+
+hh_system_ssl_site_dir() {
+  local domain="${1,,}"
+  printf '%s/%s\n' "$(hh_system_ssl_dir)" "$domain"
+}
+
+hh_system_ssl_cert() {
+  printf '%s/fullchain.pem\n' "$(hh_system_ssl_site_dir "$1")"
+}
+
+hh_system_ssl_key() {
+  printf '%s/privkey.pem\n' "$(hh_system_ssl_site_dir "$1")"
+}
+
+hh_ssl_map_dir() {
+  printf '/etc/hearthost/ssl-map\n'
+}
+
+hh_ssl_map_file() {
+  printf '%s/%s\n' "$(hh_ssl_map_dir)" "${1,,}"
+}
+
+hh_certbot_live_dir() {
+  printf '/etc/letsencrypt/live/%s\n' "${1,,}"
+}
+
+hh_pma_user() { printf 'hearthost-pma\n'; }
+hh_pma_home() { printf '/var/lib/hearthost-pma\n'; }
+hh_pma_socket() { printf '/run/php/php-fpm-hearthost-pma.sock\n'; }
+hh_pma_config() { printf '/etc/hearthost/phpmyadmin/config.inc.php\n'; }
+
+hh_pma_docroot() {
+  if [[ -d /usr/share/phpmyadmin ]]; then
+    printf '/usr/share/phpmyadmin\n'
+  elif [[ -d /usr/share/phpMyAdmin ]]; then
+    printf '/usr/share/phpMyAdmin\n'
+  else
+    printf '/usr/share/phpmyadmin\n'
+  fi
+}
+
 hh_fpm_socket() {
   local php="$1"
   local user="$2"

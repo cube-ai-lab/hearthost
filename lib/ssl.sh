@@ -17,14 +17,14 @@ hh_ssl_acme_webroot_system() {
 }
 
 # Print certbot account flags, one per line (safe to mapfile).
+# The account email is supplied by the server admin at install time.
 hh_ssl_certbot_account_args() {
   local email
   email="$(hh_conf letsencrypt_email "")"
-  if [[ -n "$email" ]]; then
-    printf '%s\n' --email "$email" --agree-tos --non-interactive
-  else
-    printf '%s\n' --register-unsafely-without-email --agree-tos --non-interactive
+  if [[ -z "$email" ]]; then
+    return 1
   fi
+  printf '%s\n' --email "$email" --agree-tos --non-interactive
 }
 
 hh_ssl_ensure_webroot() {
@@ -104,7 +104,7 @@ hh_ssl_apply() {
   local email
   email="$(hh_conf letsencrypt_email "")"
   if [[ -z "$email" ]]; then
-    hh_warn "letsencrypt_email is empty; certbot will register without an email. Set it with --letsencrypt-email"
+    hh_warn "letsencrypt_email is unset. The server admin must pass --letsencrypt-email before issuing certificates"
   fi
   hh_info "Let's Encrypt webroot + renew hook installed"
 }
@@ -125,6 +125,10 @@ hh_ssl_issue_webroot() {
     chmod "$(hh_perm_ssl)" "$webroot" "$dest"
   fi
 
+  if ! hh_ssl_certbot_account_args >/dev/null; then
+    hh_error "letsencrypt_email is required. Pass --letsencrypt-email (admin-provided; not stored in the installer repo)"
+    return 1
+  fi
   local args=()
   mapfile -t args < <(hh_ssl_certbot_account_args)
   if [[ -n "$staging" ]]; then

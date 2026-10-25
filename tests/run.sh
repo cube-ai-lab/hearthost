@@ -246,14 +246,7 @@ le_cfg="$(mktemp)"
 printf 'letsencrypt_email=\n' >"$le_cfg"
 HEARTHOST_CONF_FILE="$le_cfg"
 hh_config_load
-account="$(hh_ssl_certbot_account_args | tr '\n' ' ')"
-if [[ "$account" == *register-unsafely-without-email* ]]; then
-  printf '  ok   certbot without email is unsafe-register\n'
-  PASS=$((PASS + 1))
-else
-  printf '  FAIL certbot without email is unsafe-register\n'
-  FAIL=$((FAIL + 1))
-fi
+assert_fail "certbot refuses empty email" hh_ssl_certbot_account_args
 printf 'letsencrypt_email=ops@example.com\n' >"$le_cfg"
 hh_config_load
 account="$(hh_ssl_certbot_account_args | tr '\n' ' ')"
@@ -297,8 +290,8 @@ printf 'phpmyadmin_host=\n' >"$cfg_empty"
 HEARTHOST_CONF_FILE="$cfg_empty"
 unset HEARTHOST_PHPMYADMIN_HOST
 hh_config_load
-HEARTHOST_NONINTERACTIVE=1 hh_prompt_phpmyadmin_host
-assert_eq "$(hh_conf phpmyadmin_host)" "" "non-interactive leaves empty host"
+HEARTHOST_NONINTERACTIVE=1 assert_fail "non-interactive empty host is an error" hh_prompt_phpmyadmin_host
+assert_eq "$(hh_conf phpmyadmin_host)" "" "empty host is not written"
 assert_fail "rejects invalid phpmyadmin host" hh_prompt_phpmyadmin_host 'not a host'
 rm -f "$cfg" "$cfg_empty"
 HEARTHOST_CONF_FILE="$ROOT/etc/hearthost.conf.example"

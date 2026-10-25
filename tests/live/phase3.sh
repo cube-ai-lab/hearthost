@@ -36,6 +36,7 @@ check "php-fpm pma pool" bash -c 'test -f /etc/php/*/fpm/pool.d/hearthost-pma.co
 check "hearthost-pma user" getent passwd hearthost-pma
 check "phpMyAdmin files" bash -c 'test -d /usr/share/phpmyadmin || test -d /usr/share/phpMyAdmin'
 check "pma config" test -f /etc/hearthost/phpmyadmin/config.inc.php
+check "phpmyadmin vhost file" bash -c 'test -f /etc/nginx/sites-available/phpmyadmin.conf || test -f /etc/nginx/conf.d/vhost-phpmyadmin.conf'
 check "apache2 not installed" bash -c '! dpkg -s apache2 >/dev/null 2>&1'
 
 if ss -lnt | grep -q '127.0.0.1:3306'; then

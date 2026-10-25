@@ -69,10 +69,12 @@ MariaDB (MySQL protocol). Names are `{user}_{name}`.
 | `{user}_{name}` | that one database |
 
 phpMyAdmin listens on a dedicated hostname only, never on a customer vhost.
-The hostname is not inferred from the server PTR. Set it with
-`--phpmyadmin-host`, `HEARTHOST_PHPMYADMIN_HOST`, an existing
-`/etc/hearthost/hearthost.conf`, or an interactive prompt during `hearthost init`.
-Cookie auth against MariaDB on 127.0.0.1. PHP-FPM pool `hearthost-pma`.
+The hostname and Let's Encrypt account email are **not shipped in this
+repository**. The server admin supplies them at install time with
+`--phpmyadmin-host`, `--letsencrypt-email`, environment variables, a TTY
+prompt, or `/etc/hearthost/hearthost.conf` on the target. They are never
+inferred from the machine PTR. Cookie auth against MariaDB on 127.0.0.1.
+PHP-FPM pool `hearthost-pma`.
 
 ## Let's Encrypt
 

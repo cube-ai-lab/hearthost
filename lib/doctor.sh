@@ -216,7 +216,7 @@ hh_doctor_run() {
 
   phpmyadmin_host="$(hh_conf phpmyadmin_host "")"
   if [[ -z "$phpmyadmin_host" ]]; then
-    hh_doctor_print warn "phpmyadmin_host is empty; run init on a TTY or pass --phpmyadmin-host=pma.example.com"
+    hh_doctor_print warn "phpmyadmin_host is empty; the server admin must pass --phpmyadmin-host FQDN"
     warn=$((warn + 1))
   else
     if hh_valid_domain "$phpmyadmin_host"; then
@@ -269,7 +269,7 @@ hh_doctor_run() {
     local le_email
     le_email="$(hh_conf letsencrypt_email "")"
     if [[ -z "$le_email" ]]; then
-      hh_doctor_print warn "letsencrypt_email is empty; pass --letsencrypt-email"
+      hh_doctor_print warn "letsencrypt_email is empty; the server admin must pass --letsencrypt-email"
       warn=$((warn + 1))
     else
       hh_doctor_print ok "Let's Encrypt account email is set"

@@ -136,8 +136,8 @@ hh_prompt_phpmyadmin_host() {
   fi
 
   if ! hh_interactive; then
-    hh_warn "phpmyadmin_host is empty. Re-run on a TTY or pass --phpmyadmin-host=pma.example.com"
-    return 0
+    hh_error "phpmyadmin_host is empty. Pass --phpmyadmin-host FQDN (set by the server admin; not stored in the installer repo)"
+    return 1
   fi
 
   local answer

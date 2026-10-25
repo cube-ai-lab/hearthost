@@ -32,7 +32,9 @@ sftp_group=hearthost-sftp
 ssh_group=hearthost-ssh
 
 # phpMyAdmin is never mounted on customer sites.
-# Leave empty: `hearthost init` prompts on a TTY, or pass --phpmyadmin-host.
+# Leave blank here. The server admin supplies a dedicated FQDN at install:
+#   hearthost init mariadb --phpmyadmin-host pma.example.com
+# Do not commit a live hostname.
 phpmyadmin_enable=yes
 phpmyadmin_host=
 
@@ -41,10 +43,10 @@ mysql_bind=127.0.0.1
 mysql_prefix_separator=_
 
 # TLS / Let's Encrypt
-# Account email for certbot. Lineage is /etc/letsencrypt/live/{domain}/.
-# Published files: /home/{user}/ssl/{domain}/ (tenants) or
-# /etc/hearthost/ssl/{domain}/ (phpMyAdmin and other system names).
-# HTTP-01 webroot is /home/{user}/ssl or /etc/hearthost/ssl.
+# Account email is supplied by the server admin at install, never shipped
+# in this repo: --letsencrypt-email ops@example.com
+# Lineage: /etc/letsencrypt/live/{domain}/
+# Published: /home/{user}/ssl/{domain}/ or /etc/hearthost/ssl/{domain}/
 letsencrypt_email=
 tls_min=TLSv1.2
 

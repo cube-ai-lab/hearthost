@@ -156,9 +156,7 @@ hh_pma_apply() {
   local host
   host="$(hh_conf phpmyadmin_host "")"
   if [[ -z "$host" ]]; then
-    hh_pma_write_config pma.invalid
-    hh_warn "phpmyadmin_host is empty; phpMyAdmin files and FPM are ready, but no public vhost until you pass --phpmyadmin-host"
-    return 0
+    hh_die "phpmyadmin_host is required. Pass --phpmyadmin-host FQDN (admin-provided; not stored in the installer repo)"
   fi
 
   hh_pma_write_config "$host"
@@ -186,6 +184,10 @@ hh_pma_apply() {
 }
 
 hh_db_stack_apply() {
+  hh_config_load
+  if [[ -z "$(hh_conf letsencrypt_email "")" ]]; then
+    hh_die "letsencrypt_email is required. Pass --letsencrypt-email (admin-provided; not stored in the installer repo)"
+  fi
   hh_ssl_apply
   hh_mariadb_apply
   hh_pma_apply

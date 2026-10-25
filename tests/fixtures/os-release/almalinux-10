@@ -1,0 +1,7 @@
+PRETTY_NAME="AlmaLinux 10.0"
+NAME="AlmaLinux"
+VERSION_ID="10.0"
+VERSION="10.0"
+ID=almalinux
+ID_LIKE="rhel centos fedora"
+PLATFORM_ID="platform:el10"

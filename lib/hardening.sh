@@ -77,13 +77,79 @@ hh_ufw_allow_tcp() {
 }
 
 hh_harden_packages() {
-  export DEBIAN_FRONTEND=noninteractive
-  apt-get update -qq
-  apt-get install -y -qq fail2ban ufw unattended-upgrades >/dev/null
+  case "$(hh_os_family)" in
+    debian)
+      hh_info "installing packages (fail2ban, ufw, unattended-upgrades)"
+      hh_pkg_install fail2ban ufw unattended-upgrades
+      ;;
+    rhel)
+      hh_info "installing packages (fail2ban, firewalld, dnf-automatic)"
+      hh_pkg_install fail2ban firewalld dnf-automatic
+      ;;
+    *)
+      hh_die "unsupported OS family $(hh_os_family)"
+      ;;
+  esac
+}
+
+hh_harden_firewall() {
+  case "$(hh_os_family)" in
+    debian)
+      hh_info "UFW: deny incoming, allow 22/80/443"
+      ufw default deny incoming >/dev/null
+      ufw default allow outgoing >/dev/null
+      ufw allow OpenSSH comment "hearthost-ssh" >/dev/null
+      hh_ufw_allow_tcp 80 >/dev/null
+      hh_ufw_allow_tcp 443 >/dev/null
+      ufw --force enable >/dev/null
+      ;;
+    rhel)
+      hh_info "firewalld: ssh, http, https"
+      systemctl enable --now firewalld >/dev/null
+      firewall-cmd --permanent --add-service=ssh >/dev/null
+      firewall-cmd --permanent --add-service=http >/dev/null
+      firewall-cmd --permanent --add-service=https >/dev/null
+      firewall-cmd --reload >/dev/null
+      ;;
+  esac
+}
+
+hh_harden_autoupdates() {
+  local root
+  root="$(hearthost_root)"
+  case "$(hh_os_family)" in
+    debian)
+      hh_info "unattended upgrades"
+      hh_install_template "$root/templates/apt/20auto-upgrades" \
+        /etc/apt/apt.conf.d/20auto-upgrades 0644
+      systemctl enable unattended-upgrades >/dev/null
+      ;;
+    rhel)
+      hh_info "dnf-automatic security updates"
+      local auto=/etc/dnf/automatic.conf
+      if [[ -f "$auto" ]]; then
+        hh_backup_file "$auto" >/dev/null
+        if grep -q '^apply_updates' "$auto"; then
+          sed -i 's/^apply_updates.*/apply_updates = yes/' "$auto"
+        else
+          printf '\napply_updates = yes\n' >>"$auto"
+        fi
+        if grep -q '^upgrade_type' "$auto"; then
+          sed -i 's/^upgrade_type.*/upgrade_type = security/' "$auto"
+        fi
+      else
+        hh_install_template "$root/templates/dnf/automatic.conf.snippet" "$auto" 0644
+      fi
+      systemctl enable --now dnf-automatic.timer >/dev/null 2>&1 \
+        || systemctl enable --now dnf-automatic-install.timer >/dev/null
+      ;;
+  esac
 }
 
 hh_harden_apply() {
   hh_require_root
+  hh_os_load
+  hh_os_supported || hh_die "unsupported OS: $(hh_os_pretty). Need $(hh_os_supported_list)"
   hh_config_load
 
   local root ssh_group sftp_group
@@ -92,6 +158,7 @@ hh_harden_apply() {
   sftp_group="$(hh_conf sftp_group hearthost-sftp)"
 
   mkdir -p /etc/hearthost/backups /etc/hearthost/users.d /etc/hearthost/sites.d
+  mkdir -p /etc/ssh/sshd_config.d
   if [[ ! -f /etc/hearthost/hearthost.conf ]]; then
     install -m 0640 "$root/etc/hearthost.conf.example" /etc/hearthost/hearthost.conf
   fi
@@ -99,7 +166,6 @@ hh_harden_apply() {
   hh_prompt_phpmyadmin_host "${HEARTHOST_PHPMYADMIN_HOST_FLAG:-}" \
     || hh_die "invalid or missing phpmyadmin_host"
 
-  hh_info "installing packages (fail2ban, ufw, unattended-upgrades)"
   hh_harden_packages
 
   hh_info "ensuring groups $ssh_group $sftp_group"
@@ -120,7 +186,7 @@ hh_harden_apply() {
     [[ -n "$newest" ]] && cp -a "$newest" /etc/ssh/sshd_config
     hh_die "SSH config rejected; not reloading sshd"
   fi
-  systemctl reload ssh
+  hh_sshd_reload
 
   hh_info "sysctl hardening"
   hh_install_template "$root/templates/sysctl/99-hearthost.conf" \
@@ -133,18 +199,8 @@ hh_harden_apply() {
   systemctl enable --now fail2ban >/dev/null
   systemctl reload fail2ban 2>/dev/null || systemctl restart fail2ban
 
-  hh_info "unattended upgrades"
-  hh_install_template "$root/templates/apt/20auto-upgrades" \
-    /etc/apt/apt.conf.d/20auto-upgrades 0644
-  systemctl enable unattended-upgrades >/dev/null
+  hh_harden_autoupdates
+  hh_harden_firewall
 
-  hh_info "UFW: deny incoming, allow 22/80/443"
-  ufw default deny incoming >/dev/null
-  ufw default allow outgoing >/dev/null
-  ufw allow OpenSSH comment "hearthost-ssh" >/dev/null
-  hh_ufw_allow_tcp 80 >/dev/null
-  hh_ufw_allow_tcp 443 >/dev/null
-  ufw --force enable >/dev/null
-
-  hh_info "Phase 1 hardening applied"
+  hh_info "Phase 1 hardening applied on $(hh_os_pretty)"
 }

@@ -29,13 +29,8 @@ hh_doctor_controller() {
 }
 
 hh_doctor_os() {
-  if [[ -f /etc/os-release ]]; then
-    # shellcheck disable=SC1091
-    . /etc/os-release
-    printf '%s\n' "${ID}:${VERSION_ID}"
-  else
-    printf 'unknown\n'
-  fi
+  hh_os_load
+  printf '%s:%s\n' "$(hh_os_id)" "$(hh_os_version)"
 }
 
 hh_doctor_ram_users_supported() {
@@ -70,10 +65,10 @@ hh_doctor_run() {
   printf 'root %s\n\n' "$(hearthost_root)"
 
   os="$(hh_doctor_os)"
-  if [[ "$os" == ubuntu:24.04* || "$os" == ubuntu:24.* ]]; then
-    hh_doctor_print ok "OS $os"
+  if hh_os_supported; then
+    hh_doctor_print ok "OS $(hh_os_pretty) ($os, family=$(hh_os_family))"
   else
-    hh_doctor_print fail "OS $os (Ubuntu 24.04 required)"
+    hh_doctor_print fail "OS $(hh_os_pretty) ($os) unsupported. Need $(hh_os_supported_list)"
     fail=$((fail + 1))
   fi
 
@@ -111,26 +106,60 @@ hh_doctor_run() {
     warn=$((warn + 1))
   fi
 
-  if command -v ufw >/dev/null 2>&1; then
-    if ufw status 2>/dev/null | grep -qi 'Status: active'; then
-      local ufw_missing=()
-      ufw status 2>/dev/null | grep -Eq '22/tcp|OpenSSH' || ufw_missing+=(22)
-      ufw status 2>/dev/null | grep -Eq '80/tcp' || ufw_missing+=(80)
-      ufw status 2>/dev/null | grep -Eq '443/tcp' || ufw_missing+=(443)
-      if ((${#ufw_missing[@]})); then
-        hh_doctor_print warn "UFW active but missing ports: ${ufw_missing[*]}"
-        warn=$((warn + 1))
+  case "$(hh_os_family)" in
+    debian)
+      if command -v ufw >/dev/null 2>&1; then
+        if ufw status 2>/dev/null | grep -qi 'Status: active'; then
+          local ufw_missing=()
+          ufw status 2>/dev/null | grep -Eq '22/tcp|OpenSSH' || ufw_missing+=(22)
+          ufw status 2>/dev/null | grep -Eq '80/tcp' || ufw_missing+=(80)
+          ufw status 2>/dev/null | grep -Eq '443/tcp' || ufw_missing+=(443)
+          if ((${#ufw_missing[@]})); then
+            hh_doctor_print warn "UFW active but missing ports: ${ufw_missing[*]}"
+            warn=$((warn + 1))
+          else
+            hh_doctor_print ok "UFW active (22, 80, 443)"
+          fi
+        else
+          hh_doctor_print warn "UFW installed but inactive (Phase 1)"
+          warn=$((warn + 1))
+        fi
       else
-        hh_doctor_print ok "UFW active (22, 80, 443)"
+        hh_doctor_print warn "UFW not installed (Phase 1)"
+        warn=$((warn + 1))
       fi
-    else
-      hh_doctor_print warn "UFW installed but inactive (Phase 1)"
-      warn=$((warn + 1))
-    fi
-  else
-    hh_doctor_print warn "UFW not installed (Phase 1)"
-    warn=$((warn + 1))
-  fi
+      if systemctl is-enabled --quiet unattended-upgrades 2>/dev/null; then
+        hh_doctor_print ok "unattended-upgrades enabled"
+      else
+        hh_doctor_print warn "unattended-upgrades not enabled (Phase 1)"
+        warn=$((warn + 1))
+      fi
+      ;;
+    rhel)
+      if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state 2>/dev/null | grep -qi running; then
+        local fw_missing=()
+        firewall-cmd --list-services 2>/dev/null | grep -qw ssh || fw_missing+=(ssh)
+        firewall-cmd --list-services 2>/dev/null | grep -qw http || fw_missing+=(http)
+        firewall-cmd --list-services 2>/dev/null | grep -qw https || fw_missing+=(https)
+        if ((${#fw_missing[@]})); then
+          hh_doctor_print warn "firewalld running but missing: ${fw_missing[*]}"
+          warn=$((warn + 1))
+        else
+          hh_doctor_print ok "firewalld active (ssh, http, https)"
+        fi
+      else
+        hh_doctor_print warn "firewalld not running (Phase 1)"
+        warn=$((warn + 1))
+      fi
+      if systemctl is-enabled --quiet dnf-automatic.timer 2>/dev/null \
+        || systemctl is-enabled --quiet dnf-automatic-install.timer 2>/dev/null; then
+        hh_doctor_print ok "dnf-automatic enabled"
+      else
+        hh_doctor_print warn "dnf-automatic not enabled (Phase 1)"
+        warn=$((warn + 1))
+      fi
+      ;;
+  esac
 
   local ssh_group
   ssh_group="$(hh_conf ssh_group hearthost-ssh)"
@@ -185,7 +214,9 @@ hh_doctor_run() {
 
   local pkg
   for pkg in nginx php-fpm mysql mariadb; do
-    if command -v "$pkg" >/dev/null 2>&1 || dpkg -s "$pkg" >/dev/null 2>&1 || dpkg -s "${pkg}-server" >/dev/null 2>&1; then
+    if command -v "$pkg" >/dev/null 2>&1 \
+      || hh_pkg_installed "$pkg" \
+      || hh_pkg_installed "${pkg}-server"; then
       hh_doctor_print ok "$pkg present"
     else
       if [[ "$mode" == "stack" ]]; then

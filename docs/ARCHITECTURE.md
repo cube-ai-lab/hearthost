@@ -1,6 +1,7 @@
 # Hearthost architecture
 
-CLI-first multi-tenant hosting for Ubuntu 24.04. No web control panel.
+CLI-first multi-tenant hosting for Ubuntu LTS (22.04+) and AlmaLinux 9/10.
+No web control panel.
 
 Runtime state lives on the target server under `/etc/hearthost`. The clone
 of this repository can sit anywhere; the CLI locates itself relative to
@@ -20,8 +21,9 @@ of this repository can sit anywhere; the CLI locates itself relative to
 
 ## Request path
 
-Client → UFW (22, 80, 443, plus FTP when enabled) → Nginx → PHP-FPM unix
-socket running as the site Unix user → MariaDB on 127.0.0.1.
+Client → host firewall (UFW on Ubuntu, firewalld on AlmaLinux; 22, 80, 443,
+plus FTP when enabled) → Nginx → PHP-FPM unix socket running as the site
+Unix user → MariaDB on 127.0.0.1.
 
 SSH, SFTP, and FTP land in the same user slice so RAM/CPU caps apply.
 
@@ -50,7 +52,19 @@ The hostname is not inferred from the server PTR. Set it with
 ## Phases
 
 0. Repo, schema, doctor, unit tests
-1. Hardening: UFW, SSH groups, sysctl, fail2ban — `hearthost init hardening`
+1. Hardening: firewall, SSH groups, sysctl, fail2ban — `hearthost init hardening`
+
+## Distro notes
+
+| | Ubuntu LTS | AlmaLinux 9/10 |
+| --- | --- | --- |
+| Packages | apt | dnf + EPEL |
+| Firewall | UFW | firewalld |
+| Auto-updates | unattended-upgrades | dnf-automatic |
+| Nginx user | www-data | nginx |
+| SSH unit | `ssh.service` | `sshd.service` |
+| PHP later | ondrej/php | Remi (planned) |
+| MAC | AppArmor | SELinux stays enforcing |
 2. Nginx + TLS templates
 3. MariaDB + phpMyAdmin
 4. Multi-PHP FPM

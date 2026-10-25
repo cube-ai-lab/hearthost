@@ -17,6 +17,8 @@ export HEARTHOST_ROOT
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/quota.sh"
 # shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/os.sh"
+# shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/doctor.sh"
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/hardening.sh"
@@ -30,8 +32,9 @@ Usage:
 
 Commands:
   doctor [--stack]          Preflight (default) or post-install stack check
+  os                        Print detected OS family and support
   init hardening [--phpmyadmin-host FQDN]
-                            Phase 1: UFW, SSH groups, sysctl, fail2ban
+                            Phase 1: firewall, SSH groups, sysctl, fail2ban
                             Prompts for phpMyAdmin hostname if unset
   path user HOME            Print /home/{user}
   path docroot USER DOMAIN [--primary]
@@ -167,6 +170,12 @@ main() {
   shift || true
   case "$cmd" in
     doctor) hh_cmd_doctor "$@" ;;
+    os)
+      hh_os_load
+      printf 'pretty=%s\nid=%s\nversion=%s\nfamily=%s\nweb_user=%s\nsupported=%s\n' \
+        "$(hh_os_pretty)" "$(hh_os_id)" "$(hh_os_version)" "$(hh_os_family)" \
+        "$(hh_os_web_user)" "$(hh_os_supported && echo yes || echo no)"
+      ;;
     path) hh_cmd_path "$@" ;;
     quota) hh_cmd_quota "$@" ;;
     validate) hh_cmd_validate "$@" ;;

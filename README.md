@@ -1,6 +1,6 @@
 # Hearthost
 
-CLI-first multi-tenant hosting for Ubuntu. No control panel.
+CLI-first multi-tenant hosting for Ubuntu LTS and AlmaLinux. No control panel.
 
 Each customer is a Unix user. The primary site is `/home/{user}/public_html`.
 Every extra domain or subdomain is `/home/{user}/{domain}`. PHP version is
@@ -13,13 +13,28 @@ are included. Nginx terminates TLS.
 This repository is generic installer source. Do not commit a machine IP,
 hostname, or hardware inventory.
 
+## Supported operating systems
+
+| Family | Versions |
+| --- | --- |
+| Ubuntu LTS | 22.04, 24.04, 26.04, and later even-year `.04` releases |
+| AlmaLinux | 9.x, 10.x |
+
+Interim Ubuntu releases (for example 25.04) and other distros are rejected.
+Debian, Rocky, and RHEL are not claimed as supported even when they look similar.
+
+On Ubuntu, Phase 1 uses UFW and unattended-upgrades. On AlmaLinux it uses
+firewalld and dnf-automatic. Nginx runs as `www-data` on Ubuntu and `nginx`
+on AlmaLinux.
+
 ## Status
 
-Phase 1 is available as `hearthost init hardening`: UFW (22/80/443), SSH
-group `hearthost-ssh`, sysctl hardening, fail2ban (sshd), unattended
-upgrades. Nginx, PHP, and MariaDB are not installed yet.
+Phase 1 is available as `hearthost init hardening`: firewall (22/80/443), SSH
+group `hearthost-ssh`, sysctl hardening, fail2ban (sshd), automatic security
+updates. Nginx, PHP, and MariaDB are not installed yet.
 
 ```bash
+./bin/hearthost os
 ./bin/hearthost init hardening --phpmyadmin-host pma.example.com
 ./tests/run.sh
 ```
@@ -29,7 +44,7 @@ will ask for a dedicated FQDN if it is not already in `/etc/hearthost/hearthost.
 
 ## Requirements
 
-- Ubuntu 24.04
+- A supported OS from the table above
 - Root shell
 - Enough RAM for `1G × tenants + ~1.5G` system overhead
 
@@ -42,8 +57,6 @@ cd hearthost
 ./bin/hearthost doctor
 ./bin/hearthost path docroot alice example.com --primary
 # /home/alice/public_html
-./bin/hearthost path docroot alice blog.example.com
-# /home/alice/blog.example.com
 ```
 
 ## Defaults

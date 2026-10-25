@@ -54,9 +54,41 @@ assert_fail() {
 # shellcheck source=/dev/null
 . "$ROOT/lib/quota.sh"
 # shellcheck source=/dev/null
+. "$ROOT/lib/os.sh"
+# shellcheck source=/dev/null
 . "$ROOT/lib/hardening.sh"
 
 hh_config_load
+
+load_os_fixture() {
+  HEARTHOST_OS_RELEASE="$ROOT/tests/fixtures/os-release/$1"
+  hh_os_load
+}
+
+printf '== unit: os ==\n'
+load_os_fixture ubuntu-22.04
+assert_ok "Ubuntu 22.04 LTS supported" hh_os_supported
+assert_eq "$(hh_os_family)" "debian" "22.04 family debian"
+assert_eq "$(hh_os_web_user)" "www-data" "22.04 web user"
+load_os_fixture ubuntu-24.04
+assert_ok "Ubuntu 24.04 LTS supported" hh_os_supported
+load_os_fixture ubuntu-26.04
+assert_ok "Ubuntu 26.04 LTS supported" hh_os_supported
+assert_eq "$(hh_os_major)" "26" "26.04 major"
+load_os_fixture almalinux-9
+assert_ok "AlmaLinux 9 supported" hh_os_supported
+assert_eq "$(hh_os_family)" "rhel" "el9 family rhel"
+assert_eq "$(hh_os_web_user)" "nginx" "el9 web user"
+load_os_fixture almalinux-10
+assert_ok "AlmaLinux 10 supported" hh_os_supported
+load_os_fixture ubuntu-20.04
+assert_fail "Ubuntu 20.04 not supported" hh_os_supported
+load_os_fixture ubuntu-25.04
+assert_fail "Ubuntu 25.04 interim not supported" hh_os_supported
+load_os_fixture debian-12
+assert_fail "Debian 12 not supported" hh_os_supported
+unset HEARTHOST_OS_RELEASE
+hh_os_load
 
 printf '== unit: validate ==\n'
 assert_ok "alice is a valid user" hh_valid_username alice
@@ -155,7 +187,7 @@ hh_config_load
 
 printf '== unit: cli ==\n'
 CLI="$ROOT/bin/hearthost"
-assert_eq "$("$CLI" version)" "0.2.1" "cli version"
+assert_eq "$("$CLI" version)" "0.3.0" "cli version"
 assert_eq "$("$CLI" path user alice)" "/home/alice" "cli path user"
 assert_eq "$("$CLI" path docroot alice example.com --primary)" "/home/alice/public_html" "cli primary docroot"
 assert_eq "$("$CLI" path docroot alice blog.example.com)" "/home/alice/blog.example.com" "cli addon docroot"
@@ -166,6 +198,13 @@ assert_fail "cli reject root" "$CLI" validate user root
 assert_fail "cli reject php 8.1" "$CLI" validate php 8.1
 assert_fail "cli unknown command" "$CLI" notacommand
 assert_fail "init without target" "$CLI" init
+if [[ "$("$CLI" os)" == *"supported=yes"* ]]; then
+  printf '  ok   cli os reports supported on this host\n'
+  PASS=$((PASS + 1))
+else
+  printf '  FAIL cli os should report supported=yes on Ubuntu LTS or AlmaLinux\n'
+  FAIL=$((FAIL + 1))
+fi
 
 printf '== unit: doctor preflight ==\n'
 set +e

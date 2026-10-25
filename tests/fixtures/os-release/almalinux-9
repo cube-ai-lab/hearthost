@@ -1,0 +1,7 @@
+PRETTY_NAME="AlmaLinux 9.5 (Teal Serval)"
+NAME="AlmaLinux"
+VERSION_ID="9.5"
+VERSION="9.5 (Teal Serval)"
+ID=almalinux
+ID_LIKE="rhel centos fedora"
+PLATFORM_ID="platform:el9"

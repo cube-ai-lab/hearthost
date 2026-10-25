@@ -3,6 +3,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export HEARTHOST_ROOT="$ROOT"
+# shellcheck source=/dev/null
+. "$ROOT/lib/common.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/os.sh"
+hh_os_load
 PASS=0
 FAIL=0
 
@@ -29,15 +35,26 @@ check "sshd -t" sshd -t
 check "sshd AllowGroups" bash -c 'sshd -T | grep -Eq "^allowgroups .*hearthost-ssh"'
 check "X11Forwarding off" bash -c 'sshd -T | grep -q "^x11forwarding no"'
 check "TCP forwarding still on" bash -c 'sshd -T | grep -q "^allowtcpforwarding yes"'
-check "UFW active" bash -c 'ufw status | grep -qi "Status: active"'
-check "UFW 22" bash -c 'ufw status | grep -Eq "22/tcp|OpenSSH"'
-check "UFW 80" bash -c 'ufw status | grep -q "80/tcp"'
-check "UFW 443" bash -c 'ufw status | grep -q "443/tcp"'
+case "$(hh_os_family)" in
+  debian)
+    check "UFW active" bash -c 'ufw status | grep -qi "Status: active"'
+    check "UFW 22" bash -c 'ufw status | grep -Eq "22/tcp|OpenSSH"'
+    check "UFW 80" bash -c 'ufw status | grep -q "80/tcp"'
+    check "UFW 443" bash -c 'ufw status | grep -q "443/tcp"'
+    check "unattended-upgrades enabled" systemctl is-enabled --quiet unattended-upgrades
+    ;;
+  rhel)
+    check "firewalld running" bash -c 'firewall-cmd --state | grep -qi running'
+    check "firewalld ssh" bash -c 'firewall-cmd --list-services | grep -qw ssh'
+    check "firewalld http" bash -c 'firewall-cmd --list-services | grep -qw http'
+    check "firewalld https" bash -c 'firewall-cmd --list-services | grep -qw https'
+    check "dnf-automatic enabled" bash -c 'systemctl is-enabled --quiet dnf-automatic.timer || systemctl is-enabled --quiet dnf-automatic-install.timer'
+    ;;
+esac
 check "fail2ban active" systemctl is-active --quiet fail2ban
 check "fail2ban sshd jail" bash -c 'fail2ban-client status sshd >/dev/null'
 check "kptr_restrict=2" bash -c '[[ "$(sysctl -n kernel.kptr_restrict)" == "2" ]]'
 check "rp_filter=1" bash -c '[[ "$(sysctl -n net.ipv4.conf.all.rp_filter)" == "1" ]]'
-check "unattended-upgrades enabled" systemctl is-enabled --quiet unattended-upgrades
 check "runtime config exists" test -f /etc/hearthost/hearthost.conf
 check "sshd backup exists" bash -c 'ls /etc/hearthost/backups/sshd_config.* >/dev/null'
 
@@ -51,10 +68,10 @@ else
   fail "doctor exit $doctor_rc"
   printf '%s\n' "$doctor_out"
 fi
-if [[ "$doctor_out" == *"UFW active"* ]]; then
-  ok "doctor sees UFW"
+if [[ "$doctor_out" == *"UFW active"* || "$doctor_out" == *"firewalld active"* ]]; then
+  ok "doctor sees firewall"
 else
-  fail "doctor missing UFW ok"
+  fail "doctor missing firewall ok"
 fi
 if [[ "$doctor_out" == *"AllowGroups"* ]]; then
   ok "doctor sees SSH groups"

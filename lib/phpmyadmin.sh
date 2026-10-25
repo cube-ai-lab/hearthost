@@ -37,7 +37,7 @@ hh_distro_php_fpm_service() {
     return 0
   fi
   local unit
-  for unit in \n  php8.5-fpm php8.4-fpm php8.3-fpm php8.2-fpm php-fpm; then
+  for unit in php8.5-fpm php8.4-fpm php8.3-fpm php8.2-fpm php-fpm; do
     if systemctl cat "${unit}.service" >/dev/null 2>&1; then
       printf '%s\n' "$unit"
       return 0

@@ -71,6 +71,8 @@ assert_fail() {
 . "$ROOT/lib/phpmyadmin.sh"
 # shellcheck source=/dev/null
 . "$ROOT/lib/doctor.sh"
+# shellcheck source=/dev/null
+. "$ROOT/lib/site.sh"
 
 hh_config_load
 
@@ -365,6 +367,22 @@ else
   printf '  FAIL cli os should report supported=yes on Ubuntu LTS or AlmaLinux\n'
   FAIL=$((FAIL + 1))
 fi
+
+printf '== unit: site ==\n'
+assert_eq "$(hh_site_app_snippet wordpress)" "wordpress" "wordpress app snippet"
+assert_eq "$(hh_site_app_snippet laravel)" "laravel" "laravel app snippet"
+assert_eq "$(hh_site_app_snippet joomla)" "php" "unknown app falls back to php"
+assert_eq "$(hh_site_alias_list example.com www.example.com)" "www.example.com" "alias kept"
+assert_eq "$(hh_site_alias_list example.com example.com)" "" "self alias dropped"
+assert_fail "bad alias rejected" hh_site_alias_list example.com 'not a domain'
+site_yaml="$(hh_site_state_yaml alice example.com yes 8.3 wordpress yes www.example.com)"
+assert_ok "state yaml has domain" grep -q '^domain: example.com$' <<<"$site_yaml"
+assert_ok "state yaml has user" grep -q '^user: alice$' <<<"$site_yaml"
+assert_ok "state yaml primary docroot" grep -q '^docroot: /home/alice/public_html$' <<<"$site_yaml"
+assert_ok "state yaml php quoted" grep -q '^php: "8.3"$' <<<"$site_yaml"
+assert_ok "state yaml aliases" grep -q '^aliases: \[www.example.com\]$' <<<"$site_yaml"
+addon_yaml="$(hh_site_state_yaml alice blog.example.com no 8.4 php no "")"
+assert_ok "addon docroot is /home/user/domain" grep -q '^docroot: /home/alice/blog.example.com$' <<<"$addon_yaml"
 
 printf '== unit: doctor php state ==\n'
 # Only *.conf (not *.disabled) counts as a loadable pool.

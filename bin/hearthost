@@ -34,6 +34,8 @@ export HEARTHOST_ROOT
 . "$HEARTHOST_ROOT/lib/php.sh"
 # shellcheck source=/dev/null
 . "$HEARTHOST_ROOT/lib/phpmyadmin.sh"
+# shellcheck source=/dev/null
+. "$HEARTHOST_ROOT/lib/site.sh"
 
 hh_usage() {
   cat <<EOF
@@ -55,6 +57,9 @@ Commands:
   init php                  Phase 4: PHP-FPM 8.2–8.5 (ondrej/php or Remi)
   php versions              Print configured PHP versions
   php pool USER VERSION     Render a per-user FPM pool (USER:USER)
+  site add USER DOMAIN [--php V] [--app wordpress|laravel|php]
+           [--primary] [--alias NAME]... [--no-ssl]
+                            Provision a vhost + PHP pool + TLS for a domain
   ssl issue --user USER DOMAIN
                             Issue Let's Encrypt cert into /home/{user}/ssl/{domain}/
   ssl issue --system DOMAIN Issue cert into /etc/hearthost/ssl/{domain}/
@@ -72,8 +77,17 @@ Commands:
   help                      This message
 
 Not yet implemented (later phases):
-  user add/del, site add/del, db create, wp install
+  user add/del, site del, db create, wp install
 EOF
+}
+
+hh_cmd_site() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+    add) hh_site_add "$@" ;;
+    *) hh_die "usage: hearthost site add USER DOMAIN [--php V] [--app A] [--primary] [--alias NAME]... [--no-ssl]" ;;
+  esac
 }
 
 hh_cmd_path() {
@@ -375,7 +389,8 @@ main() {
     init) hh_cmd_init "$@" ;;
     ssl) hh_cmd_ssl "$@" ;;
     php) hh_cmd_php "$@" ;;
-    user|site|db|wp)
+    site) hh_cmd_site "$@" ;;
+    user|db|wp)
       hh_die "'$cmd' is scheduled for a later phase. See docs/ARCHITECTURE.md."
       ;;
     *)

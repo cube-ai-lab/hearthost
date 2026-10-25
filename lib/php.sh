@@ -152,6 +152,31 @@ hh_php_render_pool() {
     "PHP_MEMORY_LIMIT=$(hh_conf php_memory_limit 256M)"
 }
 
+# Render a tenant pool for one version and load it: validate the FPM config,
+# then reload (not restart) so other tenants on this version keep serving.
+# Root. Returns non-zero without touching the service if the config is bad.
+hh_php_pool_apply() {
+  local user="$1"
+  local ver="$2"
+  hh_valid_username "$user" || { hh_error "invalid username: $user"; return 1; }
+  hh_php_allowed "$ver" || { hh_error "PHP $ver not in php_versions"; return 1; }
+  hh_php_version_installed "$ver" || { hh_error "PHP $ver FPM is not installed; run hearthost init php"; return 1; }
+  hh_php_ensure_run_dir
+  local dest svc err
+  dest="$(hh_php_pool_file "$user" "$ver")"
+  hh_php_render_pool "$user" "$ver" "$dest" || { hh_error "failed to render pool $dest"; return 1; }
+  chmod 644 "$dest"
+  if err="$(hh_php_fpm_config_error "$ver")"; then
+    hh_error "PHP $ver pool config rejected: $err"
+    rm -f "$dest"
+    return 1
+  fi
+  svc="$(hh_php_fpm_service "$ver")"
+  systemctl enable --now "$svc" >/dev/null 2>&1 || true
+  systemctl reload "$svc" 2>/dev/null || systemctl restart "$svc"
+  hh_info "PHP $ver pool for $user active ($svc)"
+}
+
 hh_php_ensure_ubuntu_repo() {
   if compgen -G '/etc/apt/sources.list.d/*ondrej*php*' >/dev/null; then
     return 0

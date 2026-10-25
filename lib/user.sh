@@ -205,6 +205,7 @@ hh_user_del() {
   fi
 
   hh_user_db_drop "$user"
+  hh_php_pool_remove "$user"
   declare -F hh_ftp_deny_user >/dev/null && hh_ftp_deny_user "$user"
 
   if [[ "$purge" == yes ]]; then

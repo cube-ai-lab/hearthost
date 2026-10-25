@@ -177,6 +177,27 @@ hh_php_pool_apply() {
   hh_info "PHP $ver pool for $user active ($svc)"
 }
 
+# Remove a tenant's pool from every PHP version and reload the services that
+# actually had one. Used by user del. Safe when no pools exist.
+hh_php_pool_remove() {
+  local user="$1"
+  hh_valid_username "$user" || { hh_error "invalid username: $user"; return 1; }
+  local v dir file removed=0
+  while IFS= read -r v; do
+    [[ -n "$v" ]] || continue
+    file="$(hh_php_pool_file "$user" "$v")"
+    if [[ -f "$file" ]]; then
+      rm -f "$file"
+      removed=$((removed + 1))
+      local svc
+      svc="$(hh_php_fpm_service "$v")"
+      systemctl reload "$svc" 2>/dev/null || systemctl restart "$svc" 2>/dev/null || true
+    fi
+  done < <(hh_php_versions)
+  (( removed > 0 )) && hh_info "removed $removed PHP pool(s) for $user"
+  return 0
+}
+
 hh_php_ensure_ubuntu_repo() {
   if compgen -G '/etc/apt/sources.list.d/*ondrej*php*' >/dev/null; then
     return 0

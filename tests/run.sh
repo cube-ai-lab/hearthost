@@ -430,6 +430,7 @@ hh_php_fpm_pool_dir() { printf '%s\n' "$pool_dir"; }
 assert_eq "$(hh_php_active_pool_count 8.3)" "0" "disabled-only dir has 0 live pools"
 : >"$pool_dir/hearthost-pma.conf"
 assert_eq "$(hh_php_active_pool_count 8.3)" "1" "one live pool is counted"
+assert_eq "$(hh_php_pool_file alice 8.3)" "$pool_dir/hearthost-alice.conf" "pool file path uses pool dir"
 unset -f hh_php_fpm_pool_dir
 # shellcheck source=/dev/null
 . "$ROOT/lib/php.sh"

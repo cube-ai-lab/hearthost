@@ -220,7 +220,14 @@ hh_user_del() {
       [[ -f "$f" ]] || continue
       if grep -qE "^user:[[:space:]]*${user}$" "$f"; then
         domain="$(sed -n 's/^domain:[[:space:]]*//p' "$f" | head -1)"
-        [[ -n "$domain" ]] && { hh_site_del "$domain" --keep-data >/dev/null 2>&1 || true; removed=$((removed + 1)); }
+        if [[ -n "$domain" ]]; then
+          if [[ "$purge" == yes ]]; then
+            hh_site_del "$domain" --purge >/dev/null 2>&1 || true
+          else
+            hh_site_del "$domain" --keep-data >/dev/null 2>&1 || true
+          fi
+          removed=$((removed + 1))
+        fi
       fi
     done < <(find "$dir" -maxdepth 1 -type f -name '*.yaml')
   fi
@@ -232,6 +239,20 @@ hh_user_del() {
 
   if [[ "$purge" == yes ]]; then
     hh_user_db_drop_all "$user"
+    crontab -r -u "$user" 2>/dev/null || true
+    # Remove Let's Encrypt certs and ssl-map entries for this tenant's domains
+    local ssl_map_dir="/etc/hearthost/ssl-map"
+    if [[ -d "$ssl_map_dir" ]]; then
+      while IFS= read -r mapfile; do
+        [[ -f "$mapfile" ]] || continue
+        if grep -q "$(hh_user_home "$user")" "$mapfile" 2>/dev/null; then
+          local le_domain
+          le_domain="$(basename "$mapfile")"
+          certbot delete --cert-name "$le_domain" --non-interactive 2>/dev/null || true
+          rm -f "$mapfile"
+        fi
+      done < <(find "$ssl_map_dir" -maxdepth 1 -type f)
+    fi
     userdel --remove "$user" 2>/dev/null || userdel -r "$user"
     hh_warn "purged home $(hh_user_home "$user") and all tenant data for $user"
   else
